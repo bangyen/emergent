@@ -32,12 +32,14 @@ class Speaker(nn.Module):
         # Input encoding dimension (object attributes)
         self.input_dim = TOTAL_ATTRIBUTES
 
-        # Neural network layers
+        # Neural network layers with dropout for regularization
         self.encoder = nn.Sequential(
             nn.Linear(self.input_dim, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
         )
 
         # Output layer for each message position
@@ -56,6 +58,17 @@ class Speaker(nn.Module):
                     for _ in range(config.message_length)
                 ]
             )
+
+        # Initialize weights with Xavier/He initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self) -> None:
+        """Initialize network weights using Xavier/He initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
 
     def forward(
         self, object_encoding: torch.Tensor, temperature: float = 1.0
@@ -181,28 +194,44 @@ class Listener(nn.Module):
         if config.multimodal:
             message_input_dim += config.message_length * config.gesture_size
 
-        # Message encoder
+        # Message encoder with dropout
         self.message_encoder = nn.Sequential(
             nn.Linear(message_input_dim, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
         )
 
-        # Object encoder
+        # Object encoder with dropout
         self.object_encoder = nn.Sequential(
             nn.Linear(self.object_dim, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
         )
 
-        # Scoring network
+        # Scoring network with dropout
         self.scorer = nn.Sequential(
             nn.Linear(config.hidden_size * 2, config.hidden_size),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(config.hidden_size, 1),
         )
+
+        # Initialize weights with Xavier/He initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self) -> None:
+        """Initialize network weights using Xavier/He initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
 
     def forward(
         self,
