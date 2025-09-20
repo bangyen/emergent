@@ -5,11 +5,13 @@ referential game framework from the command line.
 """
 
 import click
+from typing import Optional
 
 from .world import sample_scene, COLORS, SHAPES, SIZES
 from .data import ReferentialGameDataset
 from .utils import get_logger, get_device
 from .train import train
+from .eval import evaluate
 
 
 logger = get_logger(__name__)
@@ -104,6 +106,11 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 @click.option(
     "--length-weight", default=0.0, help="Weight for length cost regularization"
 )
+@click.option(
+    "--heldout",
+    default=None,
+    help="Comma-separated held-out attribute pairs (e.g., 'blue,triangle')",
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -119,6 +126,7 @@ def train_cmd(
     use_sequence_models: bool,
     entropy_weight: float,
     length_weight: float,
+    heldout: Optional[str],
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -126,6 +134,19 @@ def train_cmd(
     )
     if use_sequence_models:
         logger.info("Using sequence-aware models with autoregressive generation")
+
+    # Parse heldout pairs
+    heldout_pairs = None
+    if heldout:
+        pairs = heldout.split(",")
+        if len(pairs) != 2:
+            click.echo(
+                "Error: heldout must be exactly two comma-separated attributes",
+                err=True,
+            )
+            return
+        heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
+        logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
 
     try:
         train(
@@ -143,11 +164,64 @@ def train_cmd(
             use_sequence_models=use_sequence_models,
             entropy_weight=entropy_weight,
             length_weight=length_weight,
+            heldout_pairs=heldout_pairs,
         )
         click.echo("Training completed successfully!")
 
     except Exception as e:
         logger.error(f"Training failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--ckpt", required=True, help="Path to model checkpoint")
+@click.option(
+    "--split", default="compo", help="Data split to evaluate (train/iid/compo)"
+)
+@click.option(
+    "--heldout",
+    default="blue,triangle",
+    help="Comma-separated held-out attribute pairs",
+)
+@click.option("--n-scenes", default=1000, help="Number of scenes for evaluation")
+@click.option("--k", default=5, help="Number of objects per scene")
+@click.option("--batch-size", default=32, help="Batch size for evaluation")
+def eval_cmd(
+    ckpt: str,
+    split: str,
+    heldout: str,
+    n_scenes: int,
+    k: int,
+    batch_size: int,
+) -> None:
+    """Evaluate model performance on specified data split."""
+    logger.info(f"Evaluating model {ckpt} on {split} split")
+
+    # Parse heldout pairs
+    pairs = heldout.split(",")
+    if len(pairs) != 2:
+        click.echo(
+            "Error: heldout must be exactly two comma-separated attributes", err=True
+        )
+        return
+    heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
+
+    try:
+        results = evaluate(
+            model_path=ckpt,
+            split=split,
+            heldout_pairs=heldout_pairs,
+            n_scenes=n_scenes,
+            k=k,
+            batch_size=batch_size,
+        )
+
+        click.echo("\nEvaluation Results:")
+        click.echo(f"  Split: {split}")
+        click.echo(f"  Accuracy: {results['acc']:.4f}")
+
+    except Exception as e:
+        logger.error(f"Evaluation failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 

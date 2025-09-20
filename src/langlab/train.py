@@ -7,7 +7,7 @@ supervised learning for the Listener and REINFORCE for the Speaker.
 
 import os
 import csv
-from typing import Dict, Tuple, Optional, Union
+from typing import Dict, Tuple, Optional, Union, List
 from collections import deque
 
 import torch
@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
 from .config import CommunicationConfig
-from .data import ReferentialGameDataset
+from .data import ReferentialGameDataset, CompositionalDataset
 from .utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
@@ -315,12 +315,13 @@ def train(
     use_sequence_models: bool = False,
     entropy_weight: float = 0.01,
     length_weight: float = 0.0,
+    heldout_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
     This function runs the main training loop for emergent language experiments,
     training both agents through interaction in referential games. Supports both
-    regular and sequence-aware models.
+    regular and sequence-aware models, and compositional splits for generalization testing.
 
     Args:
         n_steps: Number of training steps to perform.
@@ -337,6 +338,7 @@ def train(
         use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq).
         entropy_weight: Weight for entropy bonus regularization.
         length_weight: Weight for length cost regularization.
+        heldout_pairs: List of held-out attribute pairs for compositional splits.
     """
     # Set seed for reproducibility
     set_seed(seed)
@@ -375,7 +377,18 @@ def train(
     speaker_baseline = MovingAverage(window_size=100)
 
     # Create dataset
-    dataset = ReferentialGameDataset(n_scenes=n_steps * batch_size, k=k, seed=seed)
+    if heldout_pairs is not None:
+        from .data import make_compositional_splits
+
+        splits = make_compositional_splits(n_steps * batch_size, k, heldout_pairs, seed)
+        dataset: Union[ReferentialGameDataset, CompositionalDataset] = splits[
+            "train"
+        ]  # Use training split
+        logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
+        logger.info(f"Training set size: {len(dataset)}")
+    else:
+        dataset = ReferentialGameDataset(n_scenes=n_steps * batch_size, k=k, seed=seed)
+
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # Training loop
