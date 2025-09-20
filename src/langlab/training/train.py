@@ -638,11 +638,11 @@ def train_step(
 
     # Gradient clipping for stability
     torch.nn.utils.clip_grad_norm_(
-        speaker.parameters(), max_norm=0.1
-    )  # Very aggressive clipping
+        speaker.parameters(), max_norm=1.0
+    )  # Moderate clipping for better performance
     torch.nn.utils.clip_grad_norm_(
-        listener.parameters(), max_norm=0.1
-    )  # Very aggressive clipping
+        listener.parameters(), max_norm=1.0
+    )  # Moderate clipping for better performance
 
     speaker_optimizer.step()
     listener_optimizer.step()
@@ -775,14 +775,14 @@ def train(
     speaker_optimizer = torch.optim.AdamW(
         speaker.parameters(),
         lr=learning_rate,
-        weight_decay=1e-2,  # Very high weight decay
+        weight_decay=1e-4,  # Moderate weight decay for better performance
         betas=(0.9, 0.999),
         eps=1e-8,
     )
     listener_optimizer = torch.optim.AdamW(
         listener.parameters(),
         lr=learning_rate,
-        weight_decay=1e-2,  # Very high weight decay
+        weight_decay=1e-4,  # Moderate weight decay for better performance
         betas=(0.9, 0.999),
         eps=1e-8,
     )

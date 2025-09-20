@@ -37,15 +37,15 @@ class Speaker(nn.Module):
             nn.Linear(self.input_dim, config.hidden_size),
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.2),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.2),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.2),
         )
 
         # Residual connection
@@ -55,9 +55,14 @@ class Speaker(nn.Module):
         self.output_layers = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.Linear(config.hidden_size, config.hidden_size // 2),
+                    nn.Linear(config.hidden_size, config.hidden_size),
+                    nn.LayerNorm(config.hidden_size),
                     nn.ReLU(),
-                    nn.Dropout(0.1),
+                    nn.Dropout(0.2),
+                    nn.Linear(config.hidden_size, config.hidden_size // 2),
+                    nn.LayerNorm(config.hidden_size // 2),
+                    nn.ReLU(),
+                    nn.Dropout(0.2),
                     nn.Linear(config.hidden_size // 2, config.vocabulary_size),
                 )
                 for _ in range(config.message_length)
@@ -221,40 +226,49 @@ class Listener(nn.Module):
         if config.multimodal:
             message_input_dim += config.message_length * config.gesture_size
 
-        # Much simpler message encoder to reduce overfitting
+        # Improved message encoder with better architecture
         self.message_encoder = nn.Sequential(
-            nn.Linear(message_input_dim, config.hidden_size // 2),
+            nn.Linear(message_input_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Very high dropout
-            nn.Linear(config.hidden_size // 2, config.hidden_size),
+            nn.Dropout(0.2),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Very high dropout
+            nn.Dropout(0.2),
         )
 
-        # Much simpler object encoder to reduce overfitting
+        # Improved object encoder with better architecture
         self.object_encoder = nn.Sequential(
-            nn.Linear(self.object_dim, config.hidden_size // 2),
+            nn.Linear(self.object_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Very high dropout
-            nn.Linear(config.hidden_size // 2, config.hidden_size),
+            nn.Dropout(0.2),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Very high dropout
+            nn.Dropout(0.2),
         )
 
         # Residual projection for object encoder
         self.object_residual_proj = nn.Linear(self.object_dim, config.hidden_size)
 
-        # Remove attention mechanism entirely to reduce overfitting
+        # Remove attention mechanism to reduce overfitting
         # self.attention = nn.MultiheadAttention(
-        #     embed_dim=config.hidden_size, num_heads=4, dropout=0.3, batch_first=True
+        #     embed_dim=config.hidden_size, num_heads=8, dropout=0.1, batch_first=True
         # )
         # self.attention_norm = nn.LayerNorm(config.hidden_size)
 
-        # Much simpler scorer to reduce overfitting
+        # Improved scorer with better architecture
         self.scorer = nn.Sequential(
-            nn.Linear(config.hidden_size * 2, config.hidden_size // 2),
+            nn.Linear(config.hidden_size * 2, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.5),  # Very high dropout
+            nn.Dropout(0.2),
+            nn.Linear(config.hidden_size, config.hidden_size // 2),
+            nn.LayerNorm(config.hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(config.hidden_size // 2, 1),
         )
 
