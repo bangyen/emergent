@@ -39,8 +39,8 @@ A comprehensive research framework for studying **emergent language** in multi-a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/langlab.git
-cd langlab
+git clone https://github.com/bangyen/emergent.git
+cd emergent
 
 # Install with development dependencies
 make init
