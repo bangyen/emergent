@@ -7,9 +7,9 @@ synchronized token and gesture lengths, and joint attention mechanisms.
 import torch
 import torch.nn.functional as F
 
-from src.langlab.config import CommunicationConfig
-from src.langlab.channel import DiscreteChannel
-from src.langlab.agents import Speaker, Listener
+from langlab.config import CommunicationConfig
+from langlab.channel import DiscreteChannel
+from langlab.agents import Speaker, Listener
 
 
 class TestMultimodalChannel:

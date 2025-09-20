@@ -401,7 +401,9 @@ def train(
         from .data import make_compositional_splits
 
         splits = make_compositional_splits(n_steps * batch_size, k, heldout_pairs, seed)
-        dataset: Union[ReferentialGameDataset, CompositionalDataset] = splits[
+        dataset: Union[
+            ReferentialGameDataset, CompositionalDataset, DistractorDataset
+        ] = splits[
             "train"
         ]  # Use training split
         logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")

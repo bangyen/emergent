@@ -48,7 +48,7 @@ def test_speaker_output_shapes(speaker: Speaker, config: CommunicationConfig) ->
     object_encoding = torch.randn(batch_size, input_dim)
 
     # Forward pass
-    logits, token_ids = speaker(object_encoding)
+    logits, token_ids, _, _ = speaker(object_encoding)
 
     # Check logits shape: (batch_size, message_length, vocabulary_size)
     expected_logits_shape = (batch_size, config.message_length, config.vocabulary_size)
@@ -195,12 +195,12 @@ def test_speaker_training_mode(speaker: Speaker, config: CommunicationConfig) ->
 
     # Training mode
     speaker.train()
-    logits_train, tokens_train = speaker(object_encoding)
+    logits_train, tokens_train, _, _ = speaker(object_encoding)
 
     # Reset seed and evaluation mode
     torch.manual_seed(42)
     speaker.eval()
-    logits_eval, tokens_eval = speaker(object_encoding)
+    logits_eval, tokens_eval, _, _ = speaker(object_encoding)
 
     # Logits should be the same (deterministic forward pass)
     assert torch.allclose(
@@ -263,7 +263,7 @@ def test_agent_device_compatibility(
     candidates_cpu = torch.randn(batch_size, num_candidates, input_dim)
 
     # Speaker on CPU
-    logits_cpu, tokens_cpu = speaker(object_encoding_cpu)
+    logits_cpu, tokens_cpu, _, _ = speaker(object_encoding_cpu)
     assert logits_cpu.device.type == "cpu"
     assert tokens_cpu.device.type == "cpu"
 
@@ -285,7 +285,7 @@ def test_agent_device_compatibility(
         candidates_gpu = candidates_cpu.to(device)
 
         # Speaker on GPU
-        logits_gpu, tokens_gpu = speaker_gpu(object_encoding_gpu)
+        logits_gpu, tokens_gpu, _, _ = speaker_gpu(object_encoding_gpu)
         assert logits_gpu.device.type == "cuda"
         assert tokens_gpu.device.type == "cuda"
 

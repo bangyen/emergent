@@ -398,7 +398,9 @@ class PragmaticListener(nn.Module):
         pragmatic_scores = literal_probs * speaker_probs_tensor
 
         # Normalize to get probabilities
-        pragmatic_probs = pragmatic_scores / pragmatic_scores.sum(dim=-1, keepdim=True)
+        pragmatic_probs: torch.Tensor = pragmatic_scores / pragmatic_scores.sum(
+            dim=-1, keepdim=True
+        )
 
         return pragmatic_probs
 
