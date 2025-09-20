@@ -8,7 +8,7 @@ and length cost on emergent language performance.
 import itertools
 import json
 import os
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Union
 import numpy as np
 import torch
 
@@ -260,7 +260,7 @@ def compute_zipf_slope_from_checkpoint(
     Returns:
         Zipf slope value.
     """
-    from ..core.agents import Speaker
+    from ..core.agents import Speaker, SpeakerSeq
     from ..data.data import ReferentialGameDataset
     from torch.utils.data import DataLoader
 
@@ -270,8 +270,12 @@ def compute_zipf_slope_from_checkpoint(
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create speaker
-    speaker = Speaker(config).to(device)
+    # Create speaker based on the model type used in training
+    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
+    else:
+        speaker = Speaker(config).to(device)
+
     speaker.load_state_dict(checkpoint["speaker_state_dict"])
     speaker.eval()
 
@@ -292,7 +296,12 @@ def compute_zipf_slope_from_checkpoint(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Generate messages
-            _, message_tokens, _, _ = speaker(target_objects)
+            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
+                # SpeakerSeq returns (logits, token_ids)
+                _, message_tokens = speaker(target_objects)
+            else:
+                # Speaker returns (logits, token_ids, gesture_logits, gesture_tokens)
+                _, message_tokens, _, _ = speaker(target_objects)
             all_messages.append(message_tokens)
 
     # Concatenate all messages
