@@ -14,6 +14,7 @@ from .train import train
 from .eval import evaluate
 from .population import train_population
 from .contact import train_contact_experiment
+from .train_grounded import train_grounded
 
 
 logger = get_logger(__name__)
@@ -451,6 +452,66 @@ def dash(port: int, host: str) -> None:
         )
     except KeyboardInterrupt:
         click.echo("\nDashboard stopped.")
+
+
+@main.command()
+@click.option("--episodes", default=500, help="Number of training episodes")
+@click.option("--grid", default=5, help="Size of the grid world")
+@click.option(
+    "--l", "--message-length", "message_length", default=3, help="Message length"
+)
+@click.option("--v", default=12, help="Vocabulary size")
+@click.option("--seed", default=3, help="Random seed")
+@click.option("--max-steps", default=15, help="Maximum steps per episode")
+@click.option("--hidden-size", default=64, help="Hidden layer size")
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--entropy-weight", default=0.01, help="Weight for entropy bonus")
+@click.option("--log-every", default=50, help="Logging frequency")
+@click.option("--eval-every", default=100, help="Evaluation frequency")
+@click.option("--use-curriculum", is_flag=True, help="Use curriculum learning")
+def train_grid(
+    episodes: int,
+    grid: int,
+    message_length: int,
+    v: int,
+    seed: int,
+    max_steps: int,
+    hidden_size: int,
+    learning_rate: float,
+    entropy_weight: float,
+    log_every: int,
+    eval_every: int,
+    use_curriculum: bool,
+) -> None:
+    """Train grounded Speaker and Listener agents in grid world navigation."""
+    logger.info(
+        f"Starting grounded training: episodes={episodes}, grid_size={grid}, "
+        f"vocab={v}, message_length={message_length}, seed={seed}"
+    )
+
+    if use_curriculum:
+        logger.info("Using curriculum learning with progressive difficulty")
+
+    try:
+        train_grounded(
+            episodes=episodes,
+            grid_size=grid,
+            max_steps=max_steps,
+            vocabulary_size=v,
+            message_length=message_length,
+            hidden_size=hidden_size,
+            learning_rate=learning_rate,
+            entropy_weight=entropy_weight,
+            log_every=log_every,
+            eval_every=eval_every,
+            seed=seed,
+            use_curriculum=use_curriculum,
+        )
+        click.echo("Grounded training completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Grounded training failed: {e}")
+        click.echo(f"Error: {e}", err=True)
 
 
 @main.command()
