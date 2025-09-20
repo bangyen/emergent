@@ -458,6 +458,9 @@ def train_step(
     speaker_ema: Optional[Union[Speaker, SpeakerSeq]] = None,
     listener_ema: Optional[Union[Listener, ListenerSeq]] = None,
     ema_decay: float = 0.999,
+    use_warmup: bool = False,
+    has_warmup: bool = False,
+    warmup_steps: int = 0,
 ) -> Dict[str, float]:
     """Perform one training step for both Speaker and Listener.
 
@@ -575,6 +578,11 @@ def train_step(
         speaker_scheduler.step()
     if listener_scheduler is not None and step > 1:
         listener_scheduler.step()
+
+    # Update warmup schedulers if enabled
+    if use_warmup and has_warmup and step <= warmup_steps:
+        # Note: Warmup schedulers are handled in the main training loop
+        pass
 
     # Compute accuracy
     accuracy = rewards.mean().item()
@@ -703,6 +711,17 @@ def train(
         listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
     )
 
+    # Add learning rate warmup for better convergence
+    if use_warmup:
+        warmup_steps = min(500, n_steps // 10)
+        speaker_warmup = torch.optim.lr_scheduler.LinearLR(
+            speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
+        )
+        listener_warmup = torch.optim.lr_scheduler.LinearLR(
+            listener_optimizer, start_factor=0.1, total_iters=warmup_steps
+        )
+        logger.info(f"Using learning rate warmup for {warmup_steps} steps")
+
     # Create baseline and EMA for better training stability
     speaker_baseline = MovingAverage(window_size=100)
 
@@ -727,6 +746,7 @@ def train(
             restore_best_weights=True,
         )
         logger.info(f"Using early stopping with patience={early_stopping_patience}")
+        logger.info("Early stopping checks every step for optimal peak detection")
     else:
         early_stopping = None
 
@@ -835,12 +855,20 @@ def train(
             speaker_ema,
             listener_ema,
             ema_decay,
+            use_warmup,
+            "speaker_warmup" in locals() if use_warmup else False,
+            warmup_steps if use_warmup else 0,
         )
+
+        # Update warmup schedulers if enabled
+        if use_warmup and "speaker_warmup" in locals() and step <= warmup_steps:
+            speaker_warmup.step()
+            listener_warmup.step()
 
         step += 1
 
-        # Early stopping check
-        if early_stopping is not None and step % eval_every == 0:
+        # Early stopping check - check every step for optimal peak detection
+        if early_stopping is not None:
             should_stop = early_stopping(metrics["accuracy"], listener)
             if should_stop:
                 logger.info(
