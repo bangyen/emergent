@@ -22,40 +22,100 @@ logger = get_logger(__name__)
 
 
 class MovingAverage:
-    """Exponential moving average baseline for REINFORCE training.
+    """Adaptive exponential moving average baseline for REINFORCE training.
 
-    This class maintains an exponential moving average of rewards to use as a baseline
-    in REINFORCE training, providing better stability than simple moving averages.
+    This class maintains an adaptive exponential moving average of rewards with
+    dynamic learning rate adjustment based on performance variance.
     """
 
-    def __init__(self, window_size: int = 100, alpha: float = 0.1):
-        """Initialize the exponential moving average baseline.
+    def __init__(
+        self, window_size: int = 100, alpha: float = 0.1, adaptive: bool = True
+    ):
+        """Initialize the adaptive exponential moving average baseline.
 
         Args:
             window_size: Number of recent rewards to include in the average (for compatibility).
             alpha: Exponential decay factor (0 < alpha <= 1). Higher values give more weight to recent rewards.
+            adaptive: Whether to use adaptive learning rate adjustment.
         """
         self.window_size = window_size
         self.alpha = alpha
+        self.adaptive = adaptive
         self._average = 0.0
         self.count = 0
+        self.variance = 0.0
+        self.recent_rewards: List[float] = []
 
     def update(self, reward: float) -> None:
-        """Update the exponential moving average with a new reward.
+        """Update the adaptive exponential moving average with a new reward.
 
         Args:
             reward: The reward value to add to the moving average.
         """
         self.count += 1
+        self.recent_rewards.append(reward)
+
+        # Keep only recent rewards for variance calculation
+        if len(self.recent_rewards) > 50:
+            self.recent_rewards.pop(0)
+
         if self.count == 1:
             self._average = reward
         else:
-            self._average = (1 - self.alpha) * self._average + self.alpha * reward
+            # Adaptive learning rate based on variance
+            if self.adaptive and len(self.recent_rewards) > 10:
+                current_variance = torch.var(torch.tensor(self.recent_rewards)).item()
+                # Increase learning rate when variance is high (unstable)
+                adaptive_alpha = min(0.2, self.alpha * (1 + current_variance))
+            else:
+                adaptive_alpha = self.alpha
+
+            self._average = (
+                1 - adaptive_alpha
+            ) * self._average + adaptive_alpha * reward
 
     @property
     def average(self) -> float:
-        """Get the current exponential moving average."""
+        """Get the current adaptive exponential moving average."""
         return self._average
+
+
+def get_curriculum_k(step: int, n_steps: int, min_k: int = 2, max_k: int = 5) -> int:
+    """Get curriculum difficulty (k) based on training progress.
+
+    Args:
+        step: Current training step.
+        n_steps: Total training steps.
+        min_k: Minimum number of objects per scene.
+        max_k: Maximum number of objects per scene.
+
+    Returns:
+        Number of objects per scene for current step.
+    """
+    progress = step / n_steps
+    # Smooth curriculum: start with min_k, gradually increase to max_k
+    curriculum_k = min_k + (max_k - min_k) * progress
+    return int(curriculum_k)
+
+
+def focal_loss(
+    inputs: torch.Tensor, targets: torch.Tensor, alpha: float = 1.0, gamma: float = 2.0
+) -> torch.Tensor:
+    """Compute focal loss for better handling of hard examples.
+
+    Args:
+        inputs: Logits tensor of shape (batch_size, num_classes).
+        targets: Target class indices of shape (batch_size,).
+        alpha: Weighting factor for rare class (default: 1.0).
+        gamma: Focusing parameter (default: 2.0).
+
+    Returns:
+        Scalar tensor containing the focal loss.
+    """
+    ce_loss = F.cross_entropy(inputs, targets, reduction="none")
+    pt = torch.exp(-ce_loss)
+    focal_loss = alpha * (1 - pt) ** gamma * ce_loss
+    return focal_loss.mean()
 
 
 def compute_entropy_bonus(logits: torch.Tensor) -> torch.Tensor:
@@ -134,8 +194,8 @@ def compute_listener_loss(
     else:
         probabilities = listener(message_tokens, candidate_objects)
 
-    # Compute cross-entropy loss
-    loss = F.cross_entropy(probabilities, target_indices)
+    # Compute focal loss for better handling of hard examples
+    loss = focal_loss(probabilities, target_indices, alpha=1.0, gamma=2.0)
 
     return loss
 
@@ -417,14 +477,22 @@ def train(
         listener = Listener(config).to(device)
         logger.info("Using regular models (Speaker/Listener)")
 
-    # Create optimizers
+    # Create optimizers with learning rate scheduling
     speaker_optimizer = torch.optim.Adam(speaker.parameters(), lr=learning_rate)
     listener_optimizer = torch.optim.Adam(listener.parameters(), lr=learning_rate)
+
+    # Learning rate schedulers for better convergence
+    speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    )
+    listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    )
 
     # Create baseline
     speaker_baseline = MovingAverage(window_size=100)
 
-    # Create dataset
+    # Create dataset with curriculum learning
     if heldout_pairs is not None:
         from ..data.data import make_compositional_splits
 
@@ -448,9 +516,12 @@ def train(
                 f"Using distractor dataset with {distractors} distractors per scene"
             )
         else:
+            # Use curriculum learning: start with easier scenes
+            curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
             dataset = ReferentialGameDataset(
-                n_scenes=n_steps * batch_size, k=k, seed=seed
+                n_scenes=n_steps * batch_size, k=curriculum_k, seed=seed
             )
+            logger.info(f"Using curriculum learning: starting with k={curriculum_k}")
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -486,9 +557,12 @@ def train(
             dataloader_iter = iter(dataloader)
             batch = next(dataloader_iter)
 
-        # Compute temperature annealing
+        # Compute advanced temperature annealing with cosine schedule
         progress = step / n_steps
-        temperature = temperature_start * (1 - progress) + temperature_end * progress
+        # Cosine annealing for smoother temperature decay
+        temperature = temperature_end + (temperature_start - temperature_end) * 0.5 * (
+            1 + torch.cos(torch.tensor(progress * 3.14159))
+        )
 
         # Training step
         metrics = train_step(
@@ -508,6 +582,10 @@ def train(
         )
 
         step += 1
+
+        # Update learning rate schedulers
+        speaker_scheduler.step()
+        listener_scheduler.step()
 
         # Logging
         if step % log_every == 0:
