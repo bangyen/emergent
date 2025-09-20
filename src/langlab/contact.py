@@ -465,12 +465,21 @@ class ContactExperiment:
         p = p / np.sum(p)
         q = q / np.sum(q)
 
+        # Add small epsilon to avoid numerical issues
+        eps = 1e-12
+        p = p + eps
+        q = q + eps
+
+        # Renormalize after adding epsilon
+        p = p / np.sum(p)
+        q = q / np.sum(q)
+
         # Compute average distribution
         m = (p + q) / 2
 
-        # Compute KL divergences with proper handling of zeros
-        kl_pm: float = np.sum(np.where(p > 0, p * np.log(p / m), 0))
-        kl_qm: float = np.sum(np.where(q > 0, q * np.log(q / m), 0))
+        # Compute KL divergences with numerical stability
+        kl_pm: float = np.sum(p * np.log(p / m))
+        kl_qm: float = np.sum(q * np.log(q / m))
 
         # JSD is the average of the KL divergences
         jsd: float = (kl_pm + kl_qm) / 2
