@@ -12,12 +12,8 @@ from unittest.mock import patch
 from langlab.agents import Speaker, Listener
 from langlab.data import ReferentialGameDataset
 from langlab.world import sample_scene, make_object
-from langlab.analysis import (
-    analyze_token_distribution,
-    compute_compositional_vs_iid_accuracy,
-)
-from langlab.eval import evaluate
-from langlab.ablate import run_ablation_suite
+
+# Imports moved inside test methods to ensure proper mocking
 from langlab.report import create_report
 
 
@@ -60,6 +56,9 @@ class TestEndToEndWorkflows:
                     "message_length": 1.0,
                 }
 
+                # Import and call the mocked function
+                from langlab.eval import evaluate
+
                 results = evaluate(
                     model_path=str(checkpoint_path),
                     split="train",
@@ -91,6 +90,9 @@ class TestEndToEndWorkflows:
             ]
             mock_ablate.return_value = mock_results
 
+            # Import and call the mocked function
+            from langlab.ablate import run_ablation_suite
+
             # Run ablation study
             results = run_ablation_suite(
                 runs=1,
@@ -121,19 +123,22 @@ class TestEndToEndWorkflows:
 
         results_file = results_dir / "metrics.json"
         with open(results_file, "w") as f:
-            json.dump({
-                "experiment_id": "exp_001",
-                "params": {
-                    "V": 6,
-                    "channel_noise": 0.0,
-                    "length_cost": 0.01,
+            json.dump(
+                {
+                    "experiment_id": "exp_001",
+                    "params": {
+                        "V": 6,
+                        "channel_noise": 0.0,
+                        "length_cost": 0.01,
+                    },
+                    "metrics": {
+                        "train": {"acc": 0.8},
+                        "compo": {"acc": 0.75},
+                    },
+                    "zipf_slope": -0.8,
                 },
-                "metrics": {
-                    "train": {"acc": 0.8},
-                    "compo": {"acc": 0.75},
-                },
-                "zipf_slope": -0.8,
-            }, f)
+                f,
+            )
 
         # Mock report generation
         with patch("langlab.report.create_report") as mock_report:
@@ -169,7 +174,12 @@ class TestEndToEndWorkflows:
                 "total_tokens": 100,
             }
 
-            analysis_results = analyze_token_distribution(sample_message_tokens.tolist())
+            # Import and call the mocked function
+            from langlab.analysis import analyze_token_distribution
+
+            analysis_results = analyze_token_distribution(
+                sample_message_tokens.tolist()
+            )
             assert analysis_results["zipf_slope"] == -0.8
             assert analysis_results["gini_coefficient"] == 0.3
 
@@ -178,17 +188,16 @@ class TestEndToEndWorkflows:
             "langlab.analysis.compute_compositional_vs_iid_accuracy"
         ) as mock_compo:
             mock_compo.return_value = {
-                "train_accuracy": 0.85,
                 "iid_accuracy": 0.82,
-                "compo_accuracy": 0.75,
-                "generalization_gap": 0.07,
+                "compositional_accuracy": 0.75,
             }
 
-            compo_results = compute_compositional_vs_iid_accuracy(
-                sample_training_logs, heldout_pairs=[("red", "circle")]
-            )
-            assert compo_results["train_accuracy"] == 0.85
-            assert compo_results["generalization_gap"] == 0.07
+            # Import and call the mocked function
+            from langlab.analysis import compute_compositional_vs_iid_accuracy
+
+            compo_results = compute_compositional_vs_iid_accuracy(sample_training_logs)
+            assert compo_results["iid_accuracy"] == 0.82
+            assert compo_results["compositional_accuracy"] == 0.75
 
 
 @pytest.mark.integration
@@ -268,7 +277,9 @@ class TestAgentWorkflow:
         assert message_tokens.shape[1] == sample_config.message_length
 
         # Listener processes message
-        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
+        candidate_objects = sample_scene_tensor.float().unsqueeze(
+            0
+        )  # Add batch dimension
         listener_probs = listener(message_tokens, candidate_objects)
 
         # Verify listener output
@@ -299,7 +310,9 @@ class TestAgentWorkflow:
         assert gesture_tokens.shape[1] == large_config.message_length
 
         # Listener processes both modalities
-        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
+        candidate_objects = sample_scene_tensor.float().unsqueeze(
+            0
+        )  # Add batch dimension
         listener_probs = listener(message_tokens, candidate_objects, gesture_tokens)
 
         # Verify listener output
@@ -319,7 +332,9 @@ class TestAgentWorkflow:
         message_logits, message_tokens, _, _ = speaker(target_object)
 
         # Pragmatic listener processes message with context
-        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
+        candidate_objects = sample_scene_tensor.float().unsqueeze(
+            0
+        )  # Add batch dimension
         pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
 
         # Verify pragmatic output
@@ -351,6 +366,9 @@ class TestEvaluationWorkflow:
                 "zipf_slope": -0.8,
             }
 
+            # Import and call the mocked function
+            from langlab.eval import evaluate
+
             results = evaluate(
                 model_path=str(checkpoint_path),
                 split="train",
@@ -376,6 +394,9 @@ class TestEvaluationWorkflow:
                 "entropy": 1.4,
                 "message_length": 1.0,
             }
+
+            # Import and call the mocked function
+            from langlab.eval import evaluate
 
             results = evaluate(
                 model_path=str(checkpoint_path),
@@ -415,7 +436,15 @@ class TestEvaluationWorkflow:
                 }
 
                 # Run analysis pipeline
-                token_results = analyze_token_distribution(sample_message_tokens.tolist())
+                # Import and call the mocked functions
+                from langlab.analysis import (
+                    analyze_token_distribution,
+                    compute_compositional_vs_iid_accuracy,
+                )
+
+                token_results = analyze_token_distribution(
+                    sample_message_tokens.tolist()
+                )
                 compo_results = compute_compositional_vs_iid_accuracy(
                     sample_training_logs, heldout_pairs=[("red", "circle")]
                 )
