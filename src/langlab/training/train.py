@@ -80,6 +80,87 @@ class MovingAverage:
         return self._average
 
 
+class EarlyStopping:
+    """Early stopping utility to prevent overfitting.
+
+    Monitors a metric (typically validation accuracy) and stops training
+    when the metric stops improving for a specified number of epochs.
+    """
+
+    def __init__(
+        self,
+        patience: int = 10,
+        min_delta: float = 0.001,
+        mode: str = "max",
+        restore_best_weights: bool = True,
+    ):
+        """Initialize early stopping.
+
+        Args:
+            patience: Number of epochs to wait for improvement before stopping.
+            min_delta: Minimum change to qualify as an improvement.
+            mode: 'max' for metrics to maximize, 'min' for metrics to minimize.
+            restore_best_weights: Whether to restore best weights when stopping.
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.mode = mode
+        self.restore_best_weights = restore_best_weights
+
+        self.best_score: Optional[float] = None
+        self.counter = 0
+        self.best_weights: Optional[Dict[str, torch.Tensor]] = None
+        self.early_stop = False
+
+    def __call__(self, score: float, model: torch.nn.Module) -> bool:
+        """Check if training should stop.
+
+        Args:
+            score: Current metric score.
+            model: Model to potentially save weights from.
+
+        Returns:
+            True if training should stop, False otherwise.
+        """
+        if self.best_score is None:
+            self.best_score = score
+            if self.restore_best_weights:
+                self.best_weights = {
+                    k: v.clone() for k, v in model.state_dict().items()
+                }
+        elif self._is_improvement(score):
+            self.best_score = score
+            self.counter = 0
+            if self.restore_best_weights:
+                self.best_weights = {
+                    k: v.clone() for k, v in model.state_dict().items()
+                }
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+                if self.restore_best_weights and self.best_weights is not None:
+                    model.load_state_dict(self.best_weights)
+
+        return self.early_stop
+
+    def _is_improvement(self, score: float) -> bool:
+        """Check if the score represents an improvement.
+
+        Args:
+            score: Current score to check.
+
+        Returns:
+            True if score is an improvement, False otherwise.
+        """
+        if self.best_score is None:
+            return True
+        if self.mode == "max":
+            return score > self.best_score + self.min_delta
+        else:
+            return score < self.best_score - self.min_delta
+
+
 def get_curriculum_k(step: int, n_steps: int, min_k: int = 2, max_k: int = 5) -> int:
     """Get curriculum difficulty (k) based on training progress.
 
@@ -453,6 +534,9 @@ def train(
     use_curriculum: bool = True,
     use_warmup: bool = True,
     use_ema: bool = True,
+    use_early_stopping: bool = True,
+    early_stopping_patience: int = 20,
+    early_stopping_min_delta: float = 0.01,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -558,6 +642,18 @@ def train(
     else:
         speaker_ema = None
         listener_ema = None
+
+    # Early stopping for preventing overfitting
+    if use_early_stopping:
+        early_stopping = EarlyStopping(
+            patience=early_stopping_patience,
+            min_delta=early_stopping_min_delta,
+            mode="max",
+            restore_best_weights=True,
+        )
+        logger.info(f"Using early stopping with patience={early_stopping_patience}")
+    else:
+        early_stopping = None
 
     # Create dataset with curriculum learning
     if heldout_pairs is not None:
@@ -667,6 +763,16 @@ def train(
         )
 
         step += 1
+
+        # Early stopping check
+        if early_stopping is not None and step % eval_every == 0:
+            should_stop = early_stopping(metrics["accuracy"], listener)
+            if should_stop:
+                logger.info(
+                    f"Early stopping triggered at step {step}. "
+                    f"Best accuracy: {early_stopping.best_score:.4f}"
+                )
+                break
 
         # Logging
         if step % log_every == 0:
