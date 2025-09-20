@@ -15,19 +15,28 @@ class CommunicationConfig:
 
     This dataclass encapsulates all the key parameters that control how agents
     communicate in referential games, including vocabulary size, message length,
-    neural network architecture, and reproducibility settings.
+    neural network architecture, multimodal support, and reproducibility settings.
 
     Attributes:
         vocabulary_size: Number of tokens in the communication vocabulary (default: 10).
         message_length: Length of messages in tokens (default: 1).
         hidden_size: Hidden dimension size for neural networks (default: 64).
+        object_dim: Dimension of object encodings (default: 5).
+        gesture_size: Number of discrete gestures in multimodal communication (default: 5).
+        multimodal: Whether to enable multimodal communication with gestures (default: False).
+        distractors: Number of distractor objects in pragmatic scenarios (default: 0).
+        pragmatic: Whether to enable pragmatic inference (default: False).
         seed: Random seed for reproducibility (default: None).
     """
 
     vocabulary_size: int = 10
     message_length: int = 1
     hidden_size: int = 64
-    object_dim: int = 5
+    object_dim: int = 8
+    gesture_size: int = 5
+    multimodal: bool = False
+    distractors: int = 0
+    pragmatic: bool = False
     seed: Optional[int] = None
 
     def __post_init__(self) -> None:
@@ -40,3 +49,7 @@ class CommunicationConfig:
             raise ValueError("hidden_size must be positive")
         if self.object_dim <= 0:
             raise ValueError("object_dim must be positive")
+        if self.gesture_size <= 0:
+            raise ValueError("gesture_size must be positive")
+        if self.distractors < 0:
+            raise ValueError("distractors must be non-negative")

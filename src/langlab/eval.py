@@ -11,9 +11,10 @@ from typing import Dict, Optional, Union
 import torch
 from torch.utils.data import DataLoader
 
-from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq, PragmaticListener
 from .data import ReferentialGameDataset, CompositionalDataset
 from .utils import get_logger, get_device
+from .world import sample_scene, sample_distractor_scene, encode_object
 
 logger = get_logger(__name__)
 
@@ -180,3 +181,302 @@ def evaluate_all_splits(
     logger.info(f"Evaluation results saved to {metrics_path}")
 
     return results
+
+
+def evaluate_multimodal_intelligibility(
+    speaker: Union[Speaker, SpeakerSeq],
+    listener: Union[Listener, ListenerSeq],
+    n_scenes: int = 1000,
+    k: int = 5,
+    batch_size: int = 32,
+    device: Optional[torch.device] = None,
+) -> Dict[str, float]:
+    """Evaluate mutual intelligibility in multimodal communication.
+
+    This function measures how well agents can communicate when using both
+    tokens and gestures, comparing multimodal vs unimodal performance.
+
+    Args:
+        speaker: Trained speaker model.
+        listener: Trained listener model.
+        n_scenes: Number of scenes to evaluate on.
+        k: Number of objects per scene.
+        batch_size: Batch size for evaluation.
+        device: Device to run evaluation on.
+
+    Returns:
+        Dictionary containing multimodal intelligibility metrics.
+    """
+    if device is None:
+        device = get_device()
+
+    speaker.eval()
+    listener.eval()
+
+    total_correct = 0
+    total_scenes = 0
+    multimodal_correct = 0
+    unimodal_correct = 0
+
+    with torch.no_grad():
+        for i in range(0, n_scenes, batch_size):
+            current_batch_size = min(batch_size, n_scenes - i)
+
+            # Generate scenes
+            scenes = []
+            target_indices = []
+
+            for j in range(current_batch_size):
+                scene_objects, target_idx = sample_scene(k, seed=i + j)
+                scenes.append(scene_objects)
+                target_indices.append(target_idx)
+
+            # Encode scenes
+            scene_tensors = []
+            for scene in scenes:
+                encoded_scene = torch.stack([encode_object(obj) for obj in scene])
+                scene_tensors.append(encoded_scene)
+
+            scene_tensor = torch.stack(scene_tensors).to(device)
+            target_tensor = torch.tensor(target_indices, device=device)
+
+            # Generate messages
+            if speaker.config.multimodal:
+                logits, token_ids, gesture_logits, gesture_ids = speaker(
+                    scene_tensor[:, 0, :]
+                )
+            else:
+                logits, token_ids, _, _ = speaker(scene_tensor[:, 0, :])
+                gesture_ids = None
+
+            # Evaluate listener
+            if listener.config.multimodal and gesture_ids is not None:
+                # Multimodal evaluation
+                probs = listener(token_ids, scene_tensor, gesture_ids)
+                multimodal_correct += (
+                    (probs.argmax(dim=-1) == target_tensor).sum().item()
+                )
+            else:
+                # Unimodal evaluation
+                probs = listener(token_ids, scene_tensor)
+                unimodal_correct += (probs.argmax(dim=-1) == target_tensor).sum().item()
+
+            total_correct += (probs.argmax(dim=-1) == target_tensor).sum().item()
+            total_scenes += current_batch_size
+
+    # Calculate metrics
+    overall_accuracy = total_correct / total_scenes
+    multimodal_accuracy = (
+        multimodal_correct / total_scenes if speaker.config.multimodal else 0.0
+    )
+    unimodal_accuracy = unimodal_correct / total_scenes
+
+    intelligibility_gain = (
+        multimodal_accuracy - unimodal_accuracy if speaker.config.multimodal else 0.0
+    )
+
+    return {
+        "overall_accuracy": overall_accuracy,
+        "multimodal_accuracy": multimodal_accuracy,
+        "unimodal_accuracy": unimodal_accuracy,
+        "intelligibility_gain": intelligibility_gain,
+    }
+
+
+def evaluate_pragmatic_performance(
+    speaker: Union[Speaker, SpeakerSeq],
+    literal_listener: Union[Listener, ListenerSeq],
+    pragmatic_listener: PragmaticListener,
+    n_scenes: int = 1000,
+    k: int = 5,
+    num_distractors: int = 2,
+    batch_size: int = 32,
+    device: Optional[torch.device] = None,
+) -> Dict[str, float]:
+    """Evaluate pragmatic listener performance on distractor scenes.
+
+    This function compares literal vs pragmatic listener performance on
+    distractor-heavy scenes where literal interpretation is ambiguous.
+
+    Args:
+        speaker: Trained speaker model.
+        literal_listener: Trained literal listener model.
+        pragmatic_listener: Pragmatic listener model.
+        n_scenes: Number of distractor scenes to evaluate on.
+        k: Number of objects per scene.
+        num_distractors: Number of distractor objects.
+        batch_size: Batch size for evaluation.
+        device: Device to run evaluation on.
+
+    Returns:
+        Dictionary containing pragmatic performance metrics.
+    """
+    if device is None:
+        device = get_device()
+
+    speaker.eval()
+    literal_listener.eval()
+    pragmatic_listener.eval()
+
+    literal_correct = 0
+    pragmatic_correct = 0
+    total_scenes = 0
+
+    with torch.no_grad():
+        for i in range(0, n_scenes, batch_size):
+            current_batch_size = min(batch_size, n_scenes - i)
+
+            # Generate distractor scenes
+            scenes = []
+            target_indices = []
+
+            for j in range(current_batch_size):
+                scene_objects, target_idx = sample_distractor_scene(
+                    k, num_distractors, seed=i + j
+                )
+                scenes.append(scene_objects)
+                target_indices.append(target_idx)
+
+            # Encode scenes
+            scene_tensors = []
+            for scene in scenes:
+                encoded_scene = torch.stack([encode_object(obj) for obj in scene])
+                scene_tensors.append(encoded_scene)
+
+            scene_tensor = torch.stack(scene_tensors).to(device)
+            target_tensor = torch.tensor(target_indices, device=device)
+
+            # Generate messages for target objects
+            target_encodings = scene_tensor[
+                torch.arange(current_batch_size), target_tensor
+            ]
+
+            if speaker.config.multimodal:
+                logits, token_ids, gesture_logits, gesture_ids = speaker(
+                    target_encodings
+                )
+            else:
+                logits, token_ids, _, _ = speaker(target_encodings)
+                gesture_ids = None
+
+            # Evaluate literal listener
+            if literal_listener.config.multimodal and gesture_ids is not None:
+                literal_probs = literal_listener(token_ids, scene_tensor, gesture_ids)
+            else:
+                literal_probs = literal_listener(token_ids, scene_tensor)
+
+            literal_correct += (
+                (literal_probs.argmax(dim=-1) == target_tensor).sum().item()
+            )
+
+            # Evaluate pragmatic listener
+            if pragmatic_listener.config.multimodal and gesture_ids is not None:
+                pragmatic_probs = pragmatic_listener(
+                    token_ids, scene_tensor, gesture_ids
+                )
+            else:
+                pragmatic_probs = pragmatic_listener(token_ids, scene_tensor)
+
+            pragmatic_correct += (
+                (pragmatic_probs.argmax(dim=-1) == target_tensor).sum().item()
+            )
+            total_scenes += current_batch_size
+
+    # Calculate metrics
+    literal_accuracy = literal_correct / total_scenes
+    pragmatic_accuracy = pragmatic_correct / total_scenes
+    pragmatic_gain = pragmatic_accuracy - literal_accuracy
+
+    return {
+        "literal_accuracy": literal_accuracy,
+        "pragmatic_accuracy": pragmatic_accuracy,
+        "pragmatic_gain": pragmatic_gain,
+        "distractor_scenes": total_scenes,
+    }
+
+
+def evaluate_compositional_generalization_multimodal(
+    speaker: Union[Speaker, SpeakerSeq],
+    listener: Union[Listener, ListenerSeq],
+    heldout_pairs: list,
+    n_scenes: int = 1000,
+    k: int = 5,
+    batch_size: int = 32,
+    device: Optional[torch.device] = None,
+) -> Dict[str, float]:
+    """Evaluate compositional generalization in multimodal communication.
+
+    This function tests how well multimodal agents generalize to unseen
+    combinations of attributes, measuring compositional understanding.
+
+    Args:
+        speaker: Trained speaker model.
+        listener: Trained listener model.
+        heldout_pairs: List of held-out attribute pairs.
+        n_scenes: Number of scenes to evaluate on.
+        k: Number of objects per scene.
+        batch_size: Batch size for evaluation.
+        device: Device to run evaluation on.
+
+    Returns:
+        Dictionary containing compositional generalization metrics.
+    """
+    if device is None:
+        device = get_device()
+
+    speaker.eval()
+    listener.eval()
+
+    total_correct = 0
+    total_scenes = 0
+    compositional_correct = 0
+
+    with torch.no_grad():
+        for i in range(0, n_scenes, batch_size):
+            current_batch_size = min(batch_size, n_scenes - i)
+
+            # Generate compositional scenes
+            dataset = CompositionalDataset(scenes=[], targets=[])
+
+            dataloader = DataLoader(
+                dataset, batch_size=current_batch_size, shuffle=False
+            )
+
+            for batch_scenes, batch_targets, batch_candidates in dataloader:
+                batch_scenes = batch_scenes.to(device)
+                batch_targets = batch_targets.to(device)
+                batch_candidates = batch_candidates.to(device)
+
+                # Generate messages
+                if speaker.config.multimodal:
+                    logits, token_ids, gesture_logits, gesture_ids = speaker(
+                        batch_scenes
+                    )
+                else:
+                    logits, token_ids, _, _ = speaker(batch_scenes)
+                    gesture_ids = None
+
+                # Evaluate listener
+                if listener.config.multimodal and gesture_ids is not None:
+                    probs = listener(token_ids, batch_candidates, gesture_ids)
+                else:
+                    probs = listener(token_ids, batch_candidates)
+
+                predictions = probs.argmax(dim=-1)
+                correct = (predictions == batch_targets).sum().item()
+
+                total_correct += correct
+                total_scenes += current_batch_size
+
+                # Check compositional accuracy
+                compositional_correct += correct
+
+    # Calculate metrics
+    overall_accuracy = total_correct / total_scenes
+    compositional_accuracy = compositional_correct / total_scenes
+
+    return {
+        "overall_accuracy": overall_accuracy,
+        "compositional_accuracy": compositional_accuracy,
+        "generalization_gap": overall_accuracy - compositional_accuracy,
+    }

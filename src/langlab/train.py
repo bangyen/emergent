@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
 from .config import CommunicationConfig
-from .data import ReferentialGameDataset, CompositionalDataset
+from .data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
 from .utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
@@ -108,6 +108,7 @@ def compute_listener_loss(
     message_tokens: torch.Tensor,
     candidate_objects: torch.Tensor,
     target_indices: torch.Tensor,
+    gesture_tokens: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute supervised cross-entropy loss for the Listener.
 
@@ -124,7 +125,10 @@ def compute_listener_loss(
         Scalar tensor containing the cross-entropy loss.
     """
     # Get listener predictions
-    probabilities = listener(message_tokens, candidate_objects)
+    if gesture_tokens is not None:
+        probabilities = listener(message_tokens, candidate_objects, gesture_tokens)
+    else:
+        probabilities = listener(message_tokens, candidate_objects)
 
     # Compute cross-entropy loss
     loss = F.cross_entropy(probabilities, target_indices)
@@ -211,6 +215,7 @@ def train_step(
     speaker_optimizer: torch.optim.Optimizer,
     listener_optimizer: torch.optim.Optimizer,
     speaker_baseline: MovingAverage,
+    config: CommunicationConfig,
     lambda_speaker: float = 1.0,
     entropy_weight: float = 0.01,
     length_weight: float = 0.0,
@@ -252,10 +257,19 @@ def train_step(
     target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
     # Speaker generates messages
-    speaker_logits, message_tokens = speaker(target_objects)
+    if config.multimodal:
+        speaker_logits, message_tokens, gesture_logits, gesture_tokens = speaker(
+            target_objects
+        )
+    else:
+        speaker_logits, message_tokens, _, _ = speaker(target_objects)
+        gesture_tokens = None
 
     # Listener makes predictions
-    listener_probs = listener(message_tokens, candidate_objects)
+    if config.multimodal and gesture_tokens is not None:
+        listener_probs = listener(message_tokens, candidate_objects, gesture_tokens)
+    else:
+        listener_probs = listener(message_tokens, candidate_objects)
     listener_predictions = torch.argmax(listener_probs, dim=1)
 
     # Compute rewards (1 if correct, 0 if incorrect)
@@ -267,7 +281,7 @@ def train_step(
 
     # Compute losses
     listener_loss = compute_listener_loss(
-        listener, message_tokens, candidate_objects, target_indices
+        listener, message_tokens, candidate_objects, target_indices, gesture_tokens
     )
     speaker_loss = compute_speaker_loss(
         speaker,
@@ -316,6 +330,8 @@ def train(
     entropy_weight: float = 0.01,
     length_weight: float = 0.0,
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
+    multimodal: bool = False,
+    distractors: int = 0,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -339,6 +355,8 @@ def train(
         entropy_weight: Weight for entropy bonus regularization.
         length_weight: Weight for length cost regularization.
         heldout_pairs: List of held-out attribute pairs for compositional splits.
+        multimodal: Whether to enable multimodal communication with gestures.
+        distractors: Number of distractor objects for pragmatic inference.
     """
     # Set seed for reproducibility
     set_seed(seed)
@@ -356,6 +374,8 @@ def train(
         vocabulary_size=v,
         message_length=message_length,
         hidden_size=hidden_size,
+        multimodal=multimodal,
+        distractors=distractors,
         seed=seed,
     )
 
@@ -387,7 +407,20 @@ def train(
         logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
         logger.info(f"Training set size: {len(dataset)}")
     else:
-        dataset = ReferentialGameDataset(n_scenes=n_steps * batch_size, k=k, seed=seed)
+        if distractors > 0:
+            dataset = DistractorDataset(
+                n_scenes=n_steps * batch_size,
+                k=k,
+                num_distractors=distractors,
+                seed=seed,
+            )
+            logger.info(
+                f"Using distractor dataset with {distractors} distractors per scene"
+            )
+        else:
+            dataset = ReferentialGameDataset(
+                n_scenes=n_steps * batch_size, k=k, seed=seed
+            )
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -429,6 +462,7 @@ def train(
             speaker_optimizer,
             listener_optimizer,
             speaker_baseline,
+            config,
             lambda_speaker,
             entropy_weight,
             length_weight,

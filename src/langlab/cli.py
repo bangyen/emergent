@@ -116,6 +116,16 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     default=None,
     help="Comma-separated held-out attribute pairs (e.g., 'blue,triangle')",
 )
+@click.option(
+    "--multimodal",
+    default=0,
+    help="Enable multimodal communication with gestures (0=disabled, 1=enabled)",
+)
+@click.option(
+    "--distractors",
+    default=0,
+    help="Number of distractor objects for pragmatic inference",
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -132,6 +142,8 @@ def train_cmd(
     entropy_weight: float,
     length_weight: float,
     heldout: Optional[str],
+    multimodal: int,
+    distractors: int,
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -139,6 +151,10 @@ def train_cmd(
     )
     if use_sequence_models:
         logger.info("Using sequence-aware models with autoregressive generation")
+    if multimodal:
+        logger.info("Using multimodal communication with gestures")
+    if distractors > 0:
+        logger.info(f"Using {distractors} distractor objects for pragmatic inference")
 
     # Parse heldout pairs
     heldout_pairs = None
@@ -170,6 +186,8 @@ def train_cmd(
             entropy_weight=entropy_weight,
             length_weight=length_weight,
             heldout_pairs=heldout_pairs,
+            multimodal=bool(multimodal),
+            distractors=distractors,
         )
         click.echo("Training completed successfully!")
 
