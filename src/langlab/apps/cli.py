@@ -143,7 +143,7 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 )
 @click.option(
     "--early-stopping-patience",
-    default=10,
+    default=30,
     help="Number of evaluation steps to wait before early stopping",
 )
 @click.option(

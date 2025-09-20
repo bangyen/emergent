@@ -557,8 +557,12 @@ def train_step(
     total_loss.backward()
 
     # Gradient clipping for stability
-    torch.nn.utils.clip_grad_norm_(speaker.parameters(), max_norm=1.0)
-    torch.nn.utils.clip_grad_norm_(listener.parameters(), max_norm=1.0)
+    torch.nn.utils.clip_grad_norm_(
+        speaker.parameters(), max_norm=0.5
+    )  # Reduced clipping
+    torch.nn.utils.clip_grad_norm_(
+        listener.parameters(), max_norm=0.5
+    )  # Reduced clipping
 
     speaker_optimizer.step()
     listener_optimizer.step()
@@ -627,8 +631,8 @@ def train(
     use_warmup: bool = True,
     use_ema: bool = True,
     use_early_stopping: bool = True,
-    early_stopping_patience: int = 20,
-    early_stopping_min_delta: float = 0.01,
+    early_stopping_patience: int = 30,
+    early_stopping_min_delta: float = 0.005,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -687,18 +691,18 @@ def train(
         listener = Listener(config).to(device)
         logger.info("Using regular models (Speaker/Listener)")
 
-    # Create optimizers with improved settings
+    # Create optimizers with improved settings and stronger regularization
     speaker_optimizer = torch.optim.AdamW(
         speaker.parameters(),
         lr=learning_rate,
-        weight_decay=1e-4,
+        weight_decay=1e-3,  # Increased weight decay
         betas=(0.9, 0.999),
         eps=1e-8,
     )
     listener_optimizer = torch.optim.AdamW(
         listener.parameters(),
         lr=learning_rate,
-        weight_decay=1e-4,
+        weight_decay=1e-3,  # Increased weight decay
         betas=(0.9, 0.999),
         eps=1e-8,
     )
