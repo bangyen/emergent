@@ -259,9 +259,13 @@ class Listener(nn.Module):
         # )
         # self.attention_norm = nn.LayerNorm(config.hidden_size)
 
-        # Improved scorer with better architecture
+        # Deeper scorer for better decision making
         self.scorer = nn.Sequential(
             nn.Linear(config.hidden_size * 2, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(config.hidden_size, config.hidden_size),
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.2),
