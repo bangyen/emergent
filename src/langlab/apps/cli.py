@@ -143,12 +143,12 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 )
 @click.option(
     "--early-stopping-patience",
-    default=30,
+    default=50,
     help="Number of evaluation steps to wait before early stopping",
 )
 @click.option(
     "--early-stopping-min-delta",
-    default=0.005,
+    default=0.001,
     help="Minimum change to qualify as an improvement for early stopping",
 )
 def train_cmd(

@@ -221,47 +221,41 @@ class Listener(nn.Module):
         if config.multimodal:
             message_input_dim += config.message_length * config.gesture_size
 
-        # Simplified message encoder with better regularization
+        # Much simpler message encoder to reduce overfitting
         self.message_encoder = nn.Sequential(
-            nn.Linear(message_input_dim, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
+            nn.Linear(message_input_dim, config.hidden_size // 2),
             nn.ReLU(),
-            nn.Dropout(0.3),  # Increased dropout
-            nn.Linear(config.hidden_size, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
+            nn.Dropout(0.5),  # Very high dropout
+            nn.Linear(config.hidden_size // 2, config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.3),  # Increased dropout
+            nn.Dropout(0.5),  # Very high dropout
         )
 
-        # Simplified object encoder with better regularization
+        # Much simpler object encoder to reduce overfitting
         self.object_encoder = nn.Sequential(
-            nn.Linear(self.object_dim, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
+            nn.Linear(self.object_dim, config.hidden_size // 2),
             nn.ReLU(),
-            nn.Dropout(0.3),  # Increased dropout
-            nn.Linear(config.hidden_size, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
+            nn.Dropout(0.5),  # Very high dropout
+            nn.Linear(config.hidden_size // 2, config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.3),  # Increased dropout
+            nn.Dropout(0.5),  # Very high dropout
         )
 
         # Residual projection for object encoder
         self.object_residual_proj = nn.Linear(self.object_dim, config.hidden_size)
 
-        # Simplified attention mechanism
-        self.attention = nn.MultiheadAttention(
-            embed_dim=config.hidden_size, num_heads=4, dropout=0.3, batch_first=True
-        )
+        # Remove attention mechanism entirely to reduce overfitting
+        # self.attention = nn.MultiheadAttention(
+        #     embed_dim=config.hidden_size, num_heads=4, dropout=0.3, batch_first=True
+        # )
+        # self.attention_norm = nn.LayerNorm(config.hidden_size)
 
-        # Layer normalization for attention outputs
-        self.attention_norm = nn.LayerNorm(config.hidden_size)
-
+        # Much simpler scorer to reduce overfitting
         self.scorer = nn.Sequential(
-            nn.Linear(config.hidden_size * 2, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
+            nn.Linear(config.hidden_size * 2, config.hidden_size // 2),
             nn.ReLU(),
-            nn.Dropout(0.3),  # Increased dropout
-            nn.Linear(config.hidden_size, 1),
+            nn.Dropout(0.5),  # Very high dropout
+            nn.Linear(config.hidden_size // 2, 1),
         )
 
         # Initialize weights with improved initialization
@@ -349,20 +343,13 @@ class Listener(nn.Module):
             batch_size, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # Apply simplified attention mechanism
+        # Remove attention mechanism - use simple concatenation instead
         message_features_expanded = message_features.unsqueeze(1).expand(
             -1, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # Apply attention to weight candidate features based on message
-        attended_features, _ = self.attention(
-            query=message_features_expanded,
-            key=candidate_features,
-            value=candidate_features,
-        )  # (batch_size, num_candidates, hidden_size)
-        attended_features = self.attention_norm(
-            attended_features + message_features_expanded
-        )
+        # Simple concatenation without attention
+        attended_features = message_features_expanded
 
         # Compute scores for each candidate using enhanced features
         scores = []
