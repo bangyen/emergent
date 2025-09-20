@@ -32,20 +32,34 @@ class Speaker(nn.Module):
         # Input encoding dimension (object attributes)
         self.input_dim = TOTAL_ATTRIBUTES
 
-        # Neural network layers with dropout for regularization
+        # Enhanced neural network layers with residual connections and layer normalization
         self.encoder = nn.Sequential(
             nn.Linear(self.input_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
         )
 
-        # Output layer for each message position
+        # Residual connection
+        self.residual_proj = nn.Linear(self.input_dim, config.hidden_size)
+
+        # Output layer for each message position with improved initialization
         self.output_layers = nn.ModuleList(
             [
-                nn.Linear(config.hidden_size, config.vocabulary_size)
+                nn.Sequential(
+                    nn.Linear(config.hidden_size, config.hidden_size // 2),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(config.hidden_size // 2, config.vocabulary_size),
+                )
                 for _ in range(config.message_length)
             ]
         )
@@ -54,21 +68,32 @@ class Speaker(nn.Module):
         if config.multimodal:
             self.gesture_layers = nn.ModuleList(
                 [
-                    nn.Linear(config.hidden_size, config.gesture_size)
+                    nn.Sequential(
+                        nn.Linear(config.hidden_size, config.hidden_size // 2),
+                        nn.ReLU(),
+                        nn.Dropout(0.1),
+                        nn.Linear(config.hidden_size // 2, config.gesture_size),
+                    )
                     for _ in range(config.message_length)
                 ]
             )
 
-        # Initialize weights with Xavier/He initialization
+        # Initialize weights with improved initialization
         self._initialize_weights()
 
     def _initialize_weights(self) -> None:
-        """Initialize network weights using Xavier/He initialization."""
+        """Initialize network weights using improved initialization."""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
+                # Use He initialization for ReLU networks
+                nn.init.kaiming_normal_(
+                    module.weight, mode="fan_out", nonlinearity="relu"
+                )
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.bias, 0)
+                nn.init.constant_(module.weight, 1.0)
 
     def forward(
         self, object_encoding: torch.Tensor, temperature: float = 1.0
@@ -88,8 +113,10 @@ class Speaker(nn.Module):
             - gesture_logits: Optional tensor of shape (batch_size, message_length, gesture_size) with gesture logits
             - gesture_ids: Optional tensor of shape (batch_size, message_length) with sampled gesture indices
         """
-        # Encode object
+        # Encode object with residual connection
         hidden = self.encoder(object_encoding)  # (batch_size, hidden_size)
+        residual = self.residual_proj(object_encoding)
+        hidden = hidden + residual
 
         # Generate logits for each message position
         logits = []
@@ -194,44 +221,81 @@ class Listener(nn.Module):
         if config.multimodal:
             message_input_dim += config.message_length * config.gesture_size
 
-        # Message encoder with dropout
+        # Enhanced message encoder with attention mechanism
         self.message_encoder = nn.Sequential(
             nn.Linear(message_input_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
         )
 
-        # Object encoder with dropout
+        # Enhanced object encoder with residual connections
         self.object_encoder = nn.Sequential(
             nn.Linear(self.object_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
         )
 
-        # Scoring network with dropout
+        # Residual projection for object encoder
+        self.object_residual_proj = nn.Linear(self.object_dim, config.hidden_size)
+
+        # Enhanced scoring network with attention
+        self.attention = nn.MultiheadAttention(
+            embed_dim=config.hidden_size, num_heads=4, dropout=0.1, batch_first=True
+        )
+
         self.scorer = nn.Sequential(
             nn.Linear(config.hidden_size * 2, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(config.hidden_size, 1),
+            nn.Linear(config.hidden_size, config.hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(config.hidden_size // 2, 1),
         )
 
-        # Initialize weights with Xavier/He initialization
+        # Initialize weights with improved initialization
         self._initialize_weights()
 
     def _initialize_weights(self) -> None:
-        """Initialize network weights using Xavier/He initialization."""
+        """Initialize network weights using improved initialization."""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
+                # Use He initialization for ReLU networks
+                nn.init.kaiming_normal_(
+                    module.weight, mode="fan_out", nonlinearity="relu"
+                )
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.bias, 0)
+                nn.init.constant_(module.weight, 1.0)
+            elif isinstance(module, nn.MultiheadAttention):
+                # Initialize attention weights
+                nn.init.xavier_uniform_(module.in_proj_weight)
+                nn.init.xavier_uniform_(module.out_proj.weight)
+                if module.in_proj_bias is not None:
+                    nn.init.constant_(module.in_proj_bias, 0)
+                if module.out_proj.bias is not None:
+                    nn.init.constant_(module.out_proj.bias, 0)
 
     def forward(
         self,
@@ -280,25 +344,39 @@ class Listener(nn.Module):
             multimodal_input
         )  # (batch_size, hidden_size)
 
-        # Encode all candidate objects
+        # Encode all candidate objects with residual connection
         candidate_flat = candidate_objects.view(
             -1, self.object_dim
         )  # (batch_size * num_candidates, object_dim)
         candidate_features = self.object_encoder(
             candidate_flat
         )  # (batch_size * num_candidates, hidden_size)
+        candidate_residual = self.object_residual_proj(candidate_flat)
+        candidate_features = candidate_features + candidate_residual
         candidate_features = candidate_features.view(
             batch_size, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # Compute scores for each candidate
+        # Apply attention mechanism between message and candidates
+        message_features_expanded = message_features.unsqueeze(1).expand(
+            -1, num_candidates, -1
+        )  # (batch_size, num_candidates, hidden_size)
+
+        # Use attention to weight candidate features based on message
+        attended_features, _ = self.attention(
+            query=message_features_expanded,
+            key=candidate_features,
+            value=candidate_features,
+        )  # (batch_size, num_candidates, hidden_size)
+
+        # Compute scores for each candidate using enhanced features
         scores = []
         for i in range(num_candidates):
-            # Concatenate message and candidate features
+            # Concatenate message and attended candidate features
             combined_features = torch.cat(
                 [
                     message_features,  # (batch_size, hidden_size)
-                    candidate_features[:, i, :],  # (batch_size, hidden_size)
+                    attended_features[:, i, :],  # (batch_size, hidden_size)
                 ],
                 dim=-1,
             )  # (batch_size, hidden_size * 2)
