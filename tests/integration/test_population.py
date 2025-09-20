@@ -9,14 +9,14 @@ import torch
 from unittest.mock import patch, MagicMock
 from typing import Any
 
-from langlab.population import (
+from langlab.experiments.population import (
     PopulationConfig,
     AgentPair,
     PopulationManager,
     train_population,
 )
-from langlab.agents import Speaker, Listener
-from langlab.config import CommunicationConfig
+from langlab.core.agents import Speaker, Listener
+from langlab.core.config import CommunicationConfig
 
 
 class TestPopulationConfig:
@@ -159,7 +159,10 @@ class TestPopulationManager:
         """Test that PopulationManager initializes correctly."""
         config = PopulationConfig(n_pairs=3, lifespan=100, seed=42)
 
-        with patch("langlab.population.get_device", return_value=torch.device("cpu")):
+        with patch(
+            "langlab.experiments.population.get_device",
+            return_value=torch.device("cpu"),
+        ):
             population = PopulationManager(config)
 
         assert len(population.pairs) == 3
@@ -176,7 +179,10 @@ class TestPopulationManager:
         """Test that agent turnover occurs after lifespan T."""
         config = PopulationConfig(n_pairs=2, lifespan=5, seed=42)
 
-        with patch("langlab.population.get_device", return_value=torch.device("cpu")):
+        with patch(
+            "langlab.experiments.population.get_device",
+            return_value=torch.device("cpu"),
+        ):
             population = PopulationManager(config)
 
         # Age up pairs to trigger replacement
@@ -200,7 +206,10 @@ class TestPopulationManager:
         # Test with crossplay_prob = 0
         config_no_crossplay = PopulationConfig(n_pairs=3, crossplay_prob=0.0, seed=42)
 
-        with patch("langlab.population.get_device", return_value=torch.device("cpu")):
+        with patch(
+            "langlab.experiments.population.get_device",
+            return_value=torch.device("cpu"),
+        ):
             population_no_crossplay = PopulationManager(config_no_crossplay)
 
         interactions_no_crossplay = population_no_crossplay._select_interaction_pairs()
@@ -213,7 +222,10 @@ class TestPopulationManager:
         # Test with crossplay_prob = 0.5 (mock random to ensure cross-play)
         config_crossplay = PopulationConfig(n_pairs=3, crossplay_prob=0.5, seed=42)
 
-        with patch("langlab.population.get_device", return_value=torch.device("cpu")):
+        with patch(
+            "langlab.experiments.population.get_device",
+            return_value=torch.device("cpu"),
+        ):
             population_crossplay = PopulationManager(config_crossplay)
 
         # Mock random.random to return 0.3 (below 0.5 threshold) for cross-play
@@ -232,7 +244,10 @@ class TestPopulationManager:
         """Test that get_population_stats returns correct statistics."""
         config = PopulationConfig(n_pairs=2, lifespan=100, seed=42)
 
-        with patch("langlab.population.get_device", return_value=torch.device("cpu")):
+        with patch(
+            "langlab.experiments.population.get_device",
+            return_value=torch.device("cpu"),
+        ):
             population = PopulationManager(config)
 
         # Add some mock data to pairs
@@ -258,11 +273,11 @@ class TestPopulationManager:
 class TestTrainPopulation:
     """Test cases for train_population function."""
 
-    @patch("langlab.population.ReferentialGameDataset")
-    @patch("langlab.population.DataLoader")
-    @patch("langlab.population.PopulationManager")
-    @patch("langlab.population.set_seed")
-    @patch("langlab.population.os.makedirs")
+    @patch("langlab.experiments.population.ReferentialGameDataset")
+    @patch("langlab.experiments.population.DataLoader")
+    @patch("langlab.experiments.population.PopulationManager")
+    @patch("langlab.experiments.population.set_seed")
+    @patch("langlab.experiments.population.os.makedirs")
     def test_train_population_basic(
         self,
         mock_makedirs: Any,

@@ -15,11 +15,11 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from .config import CommunicationConfig
-from .data import ReferentialGameDataset
-from .train import MovingAverage
-from .utils import get_logger, get_device, set_seed
+from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from ..core.config import CommunicationConfig
+from ..data.data import ReferentialGameDataset
+from ..training.train import MovingAverage
+from ..utils.utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
 

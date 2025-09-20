@@ -13,12 +13,12 @@ from typing import Dict, List, Optional, Any
 import os
 import torch
 
-from .analysis import (
+from ..analysis.analysis import (
     analyze_token_distribution,
     load_training_logs,
     compute_compositional_vs_iid_accuracy,
 )
-from .world import sample_scene, COLORS, SHAPES, SIZES
+from ..data.world import sample_scene, COLORS, SHAPES, SIZES
 
 
 def load_checkpoint(checkpoint_path: str) -> Optional[Dict[str, Any]]:

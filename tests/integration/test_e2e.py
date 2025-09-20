@@ -4,17 +4,18 @@ This module tests complete experiment workflows from data generation
 through training to analysis and reporting.
 """
 
+from typing import Any
 import pytest
 import torch
 import json
 from unittest.mock import patch
 
-from langlab.agents import Speaker, Listener
-from langlab.data import ReferentialGameDataset
-from langlab.world import sample_scene, make_object
+from langlab.core.agents import Speaker, Listener
+from langlab.data.data import ReferentialGameDataset
+from langlab.data.world import sample_scene, make_object
 
 # Imports moved inside test methods to ensure proper mocking
-from langlab.report import create_report
+from langlab.analysis.report import create_report
 
 
 @pytest.mark.integration
@@ -22,7 +23,9 @@ from langlab.report import create_report
 class TestEndToEndWorkflows:
     """Test complete end-to-end experiment workflows."""
 
-    def test_basic_experiment_workflow(self, sample_config, temp_output_dir):
+    def test_basic_experiment_workflow(
+        self, sample_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test complete basic experiment workflow."""
         # 1. Data Generation
         dataset = ReferentialGameDataset(n_scenes=10, k=3, seed=42)
@@ -33,7 +36,7 @@ class TestEndToEndWorkflows:
         listener = Listener(sample_config)
 
         # 3. Mock Training (to avoid long execution)
-        with patch("langlab.train.train") as mock_train:
+        with patch("langlab.training.train.train") as mock_train:
             mock_train.return_value = None
 
             # Simulate training completion
@@ -49,7 +52,7 @@ class TestEndToEndWorkflows:
             torch.save(checkpoint_data, checkpoint_path)
 
             # 4. Evaluation
-            with patch("langlab.eval.evaluate") as mock_eval:
+            with patch("langlab.analysis.eval.evaluate") as mock_eval:
                 mock_eval.return_value = {
                     "acc": 0.85,
                     "entropy": 1.2,
@@ -57,7 +60,7 @@ class TestEndToEndWorkflows:
                 }
 
                 # Import and call the mocked function
-                from langlab.eval import evaluate
+                from langlab.analysis.eval import evaluate
 
                 results = evaluate(
                     model_path=str(checkpoint_path),
@@ -70,10 +73,12 @@ class TestEndToEndWorkflows:
                 assert results["acc"] == 0.85
                 assert results["entropy"] == 1.2
 
-    def test_ablation_study_workflow(self, sample_ablation_params, temp_output_dir):
+    def test_ablation_study_workflow(
+        self, sample_ablation_params: Any, temp_output_dir: Any
+    ) -> None:
         """Test complete ablation study workflow."""
         # Mock ablation suite execution
-        with patch("langlab.ablate.run_ablation_suite") as mock_ablate:
+        with patch("langlab.experiments.ablate.run_ablation_suite") as mock_ablate:
             mock_results = [
                 {
                     "experiment_id": "exp_001_V6_noise0.00_len0.00",
@@ -91,7 +96,7 @@ class TestEndToEndWorkflows:
             mock_ablate.return_value = mock_results
 
             # Import and call the mocked function
-            from langlab.ablate import run_ablation_suite
+            from langlab.experiments.ablate import run_ablation_suite
 
             # Run ablation study
             results = run_ablation_suite(
@@ -114,8 +119,8 @@ class TestEndToEndWorkflows:
             assert results[1]["experiment_id"] == "exp_002_V6_noise0.05_len0.01"
 
     def test_report_generation_workflow(
-        self, sample_experiment_results, temp_output_dir
-    ):
+        self, sample_experiment_results: Any, temp_output_dir: Any
+    ) -> None:
         """Test report generation workflow."""
         # Create mock experiment results
         results_dir = temp_output_dir / "experiments" / "exp_001"
@@ -141,7 +146,7 @@ class TestEndToEndWorkflows:
             )
 
         # Mock report generation
-        with patch("langlab.report.create_report") as mock_report:
+        with patch("langlab.analysis.report.create_report") as mock_report:
             mock_report.return_value = {
                 "csv_path": str(temp_output_dir / "summary" / "ablation.csv"),
                 "summary_path": str(temp_output_dir / "summary" / "summary.json"),
@@ -163,10 +168,14 @@ class TestEndToEndWorkflows:
             assert "csv_path" in report_info
             assert "summary_path" in report_info
 
-    def test_analysis_workflow(self, sample_training_logs, sample_message_tokens):
+    def test_analysis_workflow(
+        self, sample_training_logs: Any, sample_message_tokens: Any
+    ) -> None:
         """Test analysis workflow with mock data."""
         # Test token distribution analysis
-        with patch("langlab.analysis.analyze_token_distribution") as mock_analyze:
+        with patch(
+            "langlab.analysis.analysis.analyze_token_distribution"
+        ) as mock_analyze:
             mock_analyze.return_value = {
                 "zipf_slope": -0.8,
                 "gini_coefficient": 0.3,
@@ -175,7 +184,7 @@ class TestEndToEndWorkflows:
             }
 
             # Import and call the mocked function
-            from langlab.analysis import analyze_token_distribution
+            from langlab.analysis.analysis import analyze_token_distribution
 
             analysis_results = analyze_token_distribution(
                 sample_message_tokens.tolist()
@@ -185,7 +194,7 @@ class TestEndToEndWorkflows:
 
         # Test compositional analysis
         with patch(
-            "langlab.analysis.compute_compositional_vs_iid_accuracy"
+            "langlab.analysis.analysis.compute_compositional_vs_iid_accuracy"
         ) as mock_compo:
             mock_compo.return_value = {
                 "iid_accuracy": 0.82,
@@ -193,7 +202,7 @@ class TestEndToEndWorkflows:
             }
 
             # Import and call the mocked function
-            from langlab.analysis import compute_compositional_vs_iid_accuracy
+            from langlab.analysis.analysis import compute_compositional_vs_iid_accuracy
 
             compo_results = compute_compositional_vs_iid_accuracy(sample_training_logs)
             assert compo_results["iid_accuracy"] == 0.82
@@ -204,7 +213,7 @@ class TestEndToEndWorkflows:
 class TestDataWorkflow:
     """Test data generation and processing workflows."""
 
-    def test_scene_generation_workflow(self):
+    def test_scene_generation_workflow(self) -> None:
         """Test scene generation workflow."""
         # Generate multiple scenes
         scenes = []
@@ -221,7 +230,7 @@ class TestDataWorkflow:
                         scene1 != scene2
                     )  # Different seeds should produce different scenes
 
-    def test_dataset_workflow(self, sample_config):
+    def test_dataset_workflow(self, sample_config: Any) -> None:
         """Test dataset creation and usage workflow."""
         # Create dataset
         dataset = ReferentialGameDataset(n_scenes=20, k=4, seed=42)
@@ -237,7 +246,7 @@ class TestDataWorkflow:
             assert 0 <= target_idx < 4
             assert len(candidates) == 4
 
-    def test_object_encoding_workflow(self):
+    def test_object_encoding_workflow(self) -> None:
         """Test object encoding workflow."""
         # Create objects
         objects = [
@@ -247,7 +256,7 @@ class TestDataWorkflow:
         ]
 
         # Encode objects
-        from langlab.world import encode_object
+        from langlab.data.world import encode_object
 
         encodings = [encode_object(obj) for obj in objects]
 
@@ -262,7 +271,9 @@ class TestDataWorkflow:
 class TestAgentWorkflow:
     """Test agent interaction workflows."""
 
-    def test_speaker_listener_interaction(self, sample_config, sample_scene_tensor):
+    def test_speaker_listener_interaction(
+        self, sample_config: Any, sample_scene_tensor: Any
+    ) -> None:
         """Test Speaker-Listener interaction workflow."""
         speaker = Speaker(sample_config)
         listener = Listener(sample_config)
@@ -291,7 +302,9 @@ class TestAgentWorkflow:
             torch.sum(listener_probs, dim=1), torch.ones(1), atol=1e-6
         )
 
-    def test_multimodal_interaction(self, large_config, sample_scene_tensor):
+    def test_multimodal_interaction(
+        self, large_config: Any, sample_scene_tensor: Any
+    ) -> None:
         """Test multimodal Speaker-Listener interaction."""
         speaker = Speaker(large_config)
         listener = Listener(large_config)
@@ -319,9 +332,11 @@ class TestAgentWorkflow:
         assert listener_probs.shape[0] == 1
         assert listener_probs.shape[1] == candidate_objects.shape[1]
 
-    def test_pragmatic_interaction(self, sample_config, sample_scene_tensor):
+    def test_pragmatic_interaction(
+        self, sample_config: Any, sample_scene_tensor: Any
+    ) -> None:
         """Test pragmatic Speaker-Listener interaction."""
-        from langlab.agents import PragmaticListener
+        from langlab.core.agents import PragmaticListener
 
         speaker = Speaker(sample_config)
         literal_listener = Listener(sample_config)
@@ -350,15 +365,15 @@ class TestEvaluationWorkflow:
     """Test evaluation and analysis workflows."""
 
     def test_model_evaluation_workflow(
-        self, sample_config, mock_checkpoint, temp_output_dir
-    ):
+        self, sample_config: Any, mock_checkpoint: Any, temp_output_dir: Any
+    ) -> None:
         """Test model evaluation workflow."""
         # Save mock checkpoint
         checkpoint_path = temp_output_dir / "test_checkpoint.pt"
         torch.save(mock_checkpoint, checkpoint_path)
 
         # Mock evaluation
-        with patch("langlab.eval.evaluate") as mock_eval:
+        with patch("langlab.analysis.eval.evaluate") as mock_eval:
             mock_eval.return_value = {
                 "acc": 0.85,
                 "entropy": 1.2,
@@ -367,7 +382,7 @@ class TestEvaluationWorkflow:
             }
 
             # Import and call the mocked function
-            from langlab.eval import evaluate
+            from langlab.analysis.eval import evaluate
 
             results = evaluate(
                 model_path=str(checkpoint_path),
@@ -382,13 +397,13 @@ class TestEvaluationWorkflow:
             assert results["zipf_slope"] == -0.8
 
     def test_compositional_evaluation_workflow(
-        self, sample_config, mock_checkpoint, temp_output_dir
-    ):
+        self, sample_config: Any, mock_checkpoint: Any, temp_output_dir: Any
+    ) -> None:
         """Test compositional evaluation workflow."""
         checkpoint_path = temp_output_dir / "test_checkpoint.pt"
         torch.save(mock_checkpoint, checkpoint_path)
 
-        with patch("langlab.eval.evaluate") as mock_eval:
+        with patch("langlab.analysis.eval.evaluate") as mock_eval:
             mock_eval.return_value = {
                 "acc": 0.75,
                 "entropy": 1.4,
@@ -396,7 +411,7 @@ class TestEvaluationWorkflow:
             }
 
             # Import and call the mocked function
-            from langlab.eval import evaluate
+            from langlab.analysis.eval import evaluate
 
             results = evaluate(
                 model_path=str(checkpoint_path),
@@ -411,12 +426,12 @@ class TestEvaluationWorkflow:
             assert results["entropy"] == 1.4
 
     def test_analysis_pipeline_workflow(
-        self, sample_training_logs, sample_message_tokens
-    ):
+        self, sample_training_logs: Any, sample_message_tokens: Any
+    ) -> None:
         """Test complete analysis pipeline workflow."""
         # Mock analysis functions
         with patch(
-            "langlab.analysis.analyze_token_distribution"
+            "langlab.analysis.analysis.analyze_token_distribution"
         ) as mock_token_analysis:
             mock_token_analysis.return_value = {
                 "zipf_slope": -0.8,
@@ -426,7 +441,7 @@ class TestEvaluationWorkflow:
             }
 
             with patch(
-                "langlab.analysis.compute_compositional_vs_iid_accuracy"
+                "langlab.analysis.analysis.compute_compositional_vs_iid_accuracy"
             ) as mock_compo_analysis:
                 mock_compo_analysis.return_value = {
                     "train_accuracy": 0.85,
@@ -437,7 +452,7 @@ class TestEvaluationWorkflow:
 
                 # Run analysis pipeline
                 # Import and call the mocked functions
-                from langlab.analysis import (
+                from langlab.analysis.analysis import (
                     analyze_token_distribution,
                     compute_compositional_vs_iid_accuracy,
                 )

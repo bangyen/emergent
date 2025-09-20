@@ -8,10 +8,10 @@ import torch
 import tempfile
 import os
 
-from langlab.train import train_step, MovingAverage
-from langlab.agents import Speaker, Listener
-from langlab.config import CommunicationConfig
-from langlab.data import ReferentialGameDataset
+from langlab.training.train import train_step, MovingAverage
+from langlab.core.agents import Speaker, Listener
+from langlab.core.config import CommunicationConfig
+from langlab.data.data import ReferentialGameDataset
 
 
 class TestTrainingSmoke:
@@ -81,11 +81,11 @@ class TestTrainingSmoke:
                 # Mock the train function to avoid long execution
                 from unittest.mock import patch
 
-                with patch("langlab.train.train") as mock_train:
+                with patch("langlab.training.train.train") as mock_train:
                     mock_train.return_value = None
 
                     # Import train after patching
-                    from langlab.train import train
+                    from langlab.training.train import train
 
                     # Run training for 300 steps (mocked)
                     train(

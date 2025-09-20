@@ -11,10 +11,10 @@ from typing import Dict, Optional, Union
 import torch
 from torch.utils.data import DataLoader
 
-from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq, PragmaticListener
-from .data import ReferentialGameDataset, CompositionalDataset
-from .utils import get_logger, get_device
-from .world import sample_scene, sample_distractor_scene, encode_object
+from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq, PragmaticListener
+from ..data.data import ReferentialGameDataset, CompositionalDataset
+from ..utils.utils import get_logger, get_device
+from ..data.world import sample_scene, sample_distractor_scene, encode_object
 
 logger = get_logger(__name__)
 
@@ -83,7 +83,7 @@ def evaluate(
         if heldout_pairs is None:
             raise ValueError("heldout_pairs must be provided for compositional splits")
 
-        from .data import make_compositional_splits
+        from ..data.data import make_compositional_splits
 
         splits = make_compositional_splits(n_scenes, k, heldout_pairs, seed=42)
         dataset = splits[split]

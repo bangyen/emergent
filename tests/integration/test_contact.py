@@ -10,7 +10,11 @@ import torch
 # import pytest
 from unittest.mock import Mock, patch
 
-from langlab.contact import ContactExperiment, ContactConfig, train_contact_experiment
+from langlab.experiments.contact import (
+    ContactExperiment,
+    ContactConfig,
+    train_contact_experiment,
+)
 
 
 class TestContactExperiments:
@@ -291,7 +295,7 @@ class TestHeatmapIO:
 class TestContactIntegration:
     """Integration tests for contact experiment workflow."""
 
-    @patch("langlab.contact.ContactExperiment")
+    @patch("langlab.experiments.contact.ContactExperiment")
     def test_train_contact_experiment_calls(self, mock_experiment_class: Mock) -> None:
         """Test that train_contact_experiment calls all required methods."""
         # Mock the experiment instance

@@ -12,9 +12,9 @@ from typing import Dict, List, Tuple, Any, Optional
 import numpy as np
 import torch
 
-from .train import train
-from .eval import evaluate_all_splits
-from .utils import get_logger, set_seed
+from ..training.train import train
+from ..analysis.eval import evaluate_all_splits
+from ..utils.utils import get_logger, set_seed
 
 logger = get_logger(__name__)
 

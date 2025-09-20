@@ -13,14 +13,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .grid import (
+from ..experiments.grid import (
     Grid,
     Action,
     NavigationPolicy,
     create_simple_grid,
 )
-from .config import CommunicationConfig
-from .utils import get_logger, get_device, set_seed
+from ..core.config import CommunicationConfig
+from ..utils.utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
 
