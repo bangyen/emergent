@@ -5,7 +5,7 @@ end-to-end workflows and command execution.
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
 from langlab.cli import main

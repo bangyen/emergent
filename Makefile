@@ -16,19 +16,7 @@ type: ## type-check
 test: ## run all tests
 	python -m pytest
 
-test-unit: ## run unit tests only
-	python -m pytest tests/unit/ -m "not slow"
-
-test-integration: ## run integration tests only
-	python -m pytest tests/integration/ -m "not slow"
-
-test-slow: ## run slow tests
-	python -m pytest -m "slow"
-
-test-coverage: ## run tests with coverage report
-	python -m pytest --cov=src --cov-report=html --cov-report=term-missing
-
-test-all: fmt lint type test ## run all checks and tests
+all: fmt lint type test ## run all checks and tests
 
 clean: ## clean up generated files
 	rm -rf htmlcov/
