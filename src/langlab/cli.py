@@ -12,6 +12,7 @@ from .data import ReferentialGameDataset
 from .utils import get_logger, get_device
 from .train import train
 from .eval import evaluate
+from .population import train_population
 
 
 logger = get_logger(__name__)
@@ -222,6 +223,81 @@ def eval_cmd(
 
     except Exception as e:
         logger.error(f"Evaluation failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--pairs", default=5, help="Number of agent pairs in the population")
+@click.option("--lifespan", default=1000, help="Maximum age before agent replacement")
+@click.option("--steps", default=10000, help="Number of training steps")
+@click.option("--crossplay", default=0.1, help="Probability of cross-pair interactions")
+@click.option(
+    "--replacement-noise",
+    default=0.1,
+    help="Standard deviation of Gaussian noise for new agents",
+)
+@click.option("--k", default=5, help="Number of objects per scene")
+@click.option("--v", default=10, help="Vocabulary size")
+@click.option(
+    "--l", "--message-length", "message_length", default=1, help="Message length"
+)
+@click.option("--seed", default=42, help="Random seed")
+@click.option("--log-every", default=100, help="Logging frequency")
+@click.option("--batch-size", default=32, help="Batch size")
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
+@click.option(
+    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
+)
+def pop_train(
+    pairs: int,
+    lifespan: int,
+    steps: int,
+    crossplay: float,
+    replacement_noise: float,
+    k: int,
+    v: int,
+    message_length: int,
+    seed: int,
+    log_every: int,
+    batch_size: int,
+    learning_rate: float,
+    hidden_size: int,
+    use_sequence_models: bool,
+    entropy_weight: float,
+) -> None:
+    """Train a population of agent pairs for cultural transmission studies."""
+    logger.info(
+        f"Starting population training: pairs={pairs}, lifespan={lifespan}, "
+        f"steps={steps}, crossplay={crossplay}, seed={seed}"
+    )
+
+    if use_sequence_models:
+        logger.info("Using sequence-aware models with autoregressive generation")
+
+    try:
+        train_population(
+            n_steps=steps,
+            n_pairs=pairs,
+            lifespan=lifespan,
+            crossplay_prob=crossplay,
+            replacement_noise=replacement_noise,
+            k=k,
+            v=v,
+            message_length=message_length,
+            seed=seed,
+            log_every=log_every,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            use_sequence_models=use_sequence_models,
+            entropy_weight=entropy_weight,
+        )
+        click.echo("Population training completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Population training failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 
