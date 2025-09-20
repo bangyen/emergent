@@ -15,6 +15,8 @@ from .eval import evaluate
 from .population import train_population
 from .contact import train_contact_experiment
 from .train_grounded import train_grounded
+from .ablate import run_ablation_suite
+from .report import create_report
 
 
 logger = get_logger(__name__)
@@ -511,6 +513,129 @@ def train_grid(
 
     except Exception as e:
         logger.error(f"Grounded training failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--runs", default=6, help="Number of runs to perform (currently unused)")
+@click.option(
+    "--vocab-sizes", default="6,12,24", help="Comma-separated vocabulary sizes"
+)
+@click.option(
+    "--noise-levels", default="0,0.05,0.1", help="Comma-separated channel noise levels"
+)
+@click.option(
+    "--length-costs", default="0,0.01,0.05", help="Comma-separated length cost weights"
+)
+@click.option("--steps", default=2000, help="Number of training steps per experiment")
+@click.option("--k", default=5, help="Number of objects per scene")
+@click.option("--message-length", default=1, help="Message length")
+@click.option("--batch-size", default=32, help="Batch size")
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--entropy-weight", default=0.01, help="Entropy bonus weight")
+@click.option("--seed", default=42, help="Base random seed")
+def ablate(
+    runs: int,
+    vocab_sizes: str,
+    noise_levels: str,
+    length_costs: str,
+    steps: int,
+    k: int,
+    message_length: int,
+    batch_size: int,
+    learning_rate: float,
+    hidden_size: int,
+    entropy_weight: float,
+    seed: int,
+) -> None:
+    """Run ablation studies across parameter configurations."""
+    logger.info("Starting ablation study suite")
+
+    # Parse parameter lists
+    try:
+        vocab_list = [int(x.strip()) for x in vocab_sizes.split(",")]
+        noise_list = [float(x.strip()) for x in noise_levels.split(",")]
+        length_list = [float(x.strip()) for x in length_costs.split(",")]
+    except ValueError as e:
+        click.echo(f"Error parsing parameters: {e}", err=True)
+        return
+
+    click.echo("Running ablation study with:")
+    click.echo(f"  Vocabulary sizes: {vocab_list}")
+    click.echo(f"  Noise levels: {noise_list}")
+    click.echo(f"  Length costs: {length_list}")
+    click.echo(
+        f"  Total experiments: {len(vocab_list) * len(noise_list) * len(length_list)}"
+    )
+
+    try:
+        results = run_ablation_suite(
+            runs=runs,
+            vocab_sizes=vocab_list,
+            channel_noise_levels=noise_list,
+            length_costs=length_list,
+            base_seed=seed,
+            n_steps=steps,
+            k=k,
+            message_length=message_length,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            entropy_weight=entropy_weight,
+        )
+
+        click.echo("Ablation study completed successfully!")
+        click.echo("Results saved to outputs/experiments/")
+        click.echo(f"Total experiments completed: {len(results)}")
+
+    except Exception as e:
+        logger.error(f"Ablation study failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option(
+    "--input",
+    required=True,
+    help="Input pattern for experiment results (e.g., 'outputs/experiments/**/metrics.json')",
+)
+@click.option(
+    "--output-dir", default="outputs/summary", help="Output directory for report files"
+)
+@click.option("--no-charts", is_flag=True, help="Skip generating charts")
+def report(input: str, output_dir: str, no_charts: bool) -> None:
+    """Generate ablation study report from experiment results."""
+    logger.info(f"Creating report from: {input}")
+
+    try:
+        report_info = create_report(
+            input_pattern=input,
+            output_dir=output_dir,
+            create_charts=not no_charts,
+        )
+
+        if "error" in report_info:
+            click.echo(f"Error: {report_info['error']}", err=True)
+            return
+
+        click.echo("Report generated successfully!")
+        click.echo(f"CSV file: {report_info['csv_path']}")
+        click.echo(f"Summary: {report_info['summary_path']}")
+
+        if not no_charts:
+            click.echo("Charts generated:")
+            if "accuracy_chart" in report_info:
+                click.echo(f"  Accuracy bars: {report_info['accuracy_chart']}")
+            if "compo_chart" in report_info:
+                click.echo(f"  Compositional bars: {report_info['compo_chart']}")
+            if "heatmap" in report_info:
+                click.echo(f"  Heatmap: {report_info['heatmap']}")
+
+        click.echo(f"Total experiments processed: {report_info['total_experiments']}")
+
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 
