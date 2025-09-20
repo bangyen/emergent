@@ -27,6 +27,7 @@ class CommunicationConfig:
     vocabulary_size: int = 10
     message_length: int = 1
     hidden_size: int = 64
+    object_dim: int = 5
     seed: Optional[int] = None
 
     def __post_init__(self) -> None:
@@ -37,3 +38,5 @@ class CommunicationConfig:
             raise ValueError("message_length must be positive")
         if self.hidden_size <= 0:
             raise ValueError("hidden_size must be positive")
+        if self.object_dim <= 0:
+            raise ValueError("object_dim must be positive")
