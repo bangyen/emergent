@@ -74,9 +74,9 @@ def evaluate(
 
     # Create dataset based on split
     if split == "train":
-        # Use regular dataset for training evaluation
+        # Use regular dataset for training evaluation - use same seed as training for consistency
         dataset: Union[ReferentialGameDataset, CompositionalDataset] = (
-            ReferentialGameDataset(n_scenes, k, seed=42)
+            ReferentialGameDataset(n_scenes, k, seed=7)  # Match training seed
         )
     elif split in ["iid", "compo"]:
         # Use compositional splits
@@ -85,7 +85,9 @@ def evaluate(
 
         from ..data.data import make_compositional_splits
 
-        splits = make_compositional_splits(n_scenes, k, heldout_pairs, seed=42)
+        splits = make_compositional_splits(
+            n_scenes, k, heldout_pairs, seed=7
+        )  # Match training seed
         dataset = splits[split]
     else:
         raise ValueError(f"Unsupported split: {split}")

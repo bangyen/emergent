@@ -343,22 +343,14 @@ class Listener(nn.Module):
             batch_size, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # Remove attention mechanism - use simple concatenation instead
-        message_features_expanded = message_features.unsqueeze(1).expand(
-            -1, num_candidates, -1
-        )  # (batch_size, num_candidates, hidden_size)
-
-        # Simple concatenation without attention
-        attended_features = message_features_expanded
-
-        # Compute scores for each candidate using enhanced features
+        # Compute scores for each candidate using message and candidate features
         scores = []
         for i in range(num_candidates):
-            # Concatenate message and attended candidate features
+            # Concatenate message and candidate features
             combined_features = torch.cat(
                 [
                     message_features,  # (batch_size, hidden_size)
-                    attended_features[:, i, :],  # (batch_size, hidden_size)
+                    candidate_features[:, i, :],  # (batch_size, hidden_size)
                 ],
                 dim=-1,
             )  # (batch_size, hidden_size * 2)

@@ -359,8 +359,10 @@ def compute_listener_loss(
     else:
         probabilities = listener(message_tokens, candidate_objects)
 
-    # Compute focal loss for better handling of hard examples
-    loss = focal_loss(probabilities, target_indices, alpha=1.0, gamma=2.0)
+    # Use standard cross-entropy loss since listener returns probabilities
+    # Convert probabilities to logits for cross-entropy
+    logits = torch.log(probabilities + 1e-8)  # Add small epsilon to avoid log(0)
+    loss = F.cross_entropy(logits, target_indices)
 
     return loss
 
@@ -435,6 +437,84 @@ def compute_speaker_loss(
     )
 
     return total_loss
+
+
+def evaluate_validation(
+    speaker: Union[Speaker, SpeakerSeq],
+    listener: Union[Listener, ListenerSeq],
+    val_dataloader: DataLoader,
+    config: CommunicationConfig,
+    device: Optional[torch.device] = None,
+    temperature: float = 1.0,
+    use_sequence_models: bool = False,
+) -> float:
+    """Evaluate model on validation set.
+
+    This function evaluates the current model performance on the validation set,
+    returning the accuracy for early stopping and monitoring purposes.
+
+    Args:
+        speaker: The Speaker agent.
+        listener: The Listener agent.
+        val_dataloader: Validation data loader.
+        config: Communication configuration.
+        device: Device to run evaluation on.
+        temperature: Temperature for message generation.
+        use_sequence_models: Whether using sequence models.
+
+    Returns:
+        Validation accuracy as a float.
+    """
+    if device is None:
+        device = get_device()
+
+    speaker.eval()
+    listener.eval()
+
+    total_correct = 0
+    total_samples = 0
+
+    with torch.no_grad():
+        for batch in val_dataloader:
+            scene_tensor, target_indices, candidate_objects = batch
+
+            # Move to device
+            scene_tensor = scene_tensor.to(device)
+            target_indices = target_indices.to(device)
+            candidate_objects = candidate_objects.to(device)
+
+            # Extract target objects
+            batch_size = scene_tensor.size(0)
+            target_objects = scene_tensor[torch.arange(batch_size), target_indices]
+
+            # Speaker generates messages
+            if config.multimodal:
+                _, message_tokens, _, _ = speaker(
+                    target_objects, temperature=temperature
+                )
+            else:
+                if use_sequence_models:
+                    _, message_tokens = speaker(target_objects, temperature=temperature)
+                else:
+                    _, message_tokens, _, _ = speaker(
+                        target_objects, temperature=temperature
+                    )
+
+            # Listener makes predictions
+            listener_probs = listener(message_tokens, candidate_objects)
+            listener_predictions = torch.argmax(listener_probs, dim=1)
+
+            # Count correct predictions
+            correct = (listener_predictions == target_indices).sum().item()
+            total_correct += correct
+            total_samples += batch_size
+
+    accuracy = total_correct / total_samples if total_samples > 0 else 0.0
+
+    speaker.train()
+    listener.train()
+
+    return accuracy
 
 
 def train_step(
@@ -754,46 +834,73 @@ def train(
     else:
         early_stopping = None
 
-    # Create dataset with curriculum learning
+    # Create dataset with proper train/validation split
     if heldout_pairs is not None:
         from ..data.data import make_compositional_splits
 
         splits = make_compositional_splits(n_steps * batch_size, k, heldout_pairs, seed)
-        dataset: Union[
+        train_dataset: Union[
             ReferentialGameDataset, CompositionalDataset, DistractorDataset
-        ] = splits[
-            "train"
-        ]  # Use training split
+        ] = splits["train"]
+        val_dataset = splits.get("val", splits["train"])  # Use train as fallback
         logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
-        logger.info(f"Training set size: {len(dataset)}")
+        logger.info(f"Training set size: {len(train_dataset)}")
+        logger.info(f"Validation set size: {len(val_dataset)}")
     else:
         if distractors > 0:
-            dataset = DistractorDataset(
-                n_scenes=n_steps * batch_size,
+            # Create train/val split for distractor dataset
+            total_scenes = n_steps * batch_size
+            train_size = int(0.8 * total_scenes)
+            val_size = total_scenes - train_size
+
+            train_dataset = DistractorDataset(
+                n_scenes=train_size,
                 k=k,
                 num_distractors=distractors,
                 seed=seed,
             )
+            val_dataset = DistractorDataset(
+                n_scenes=val_size,
+                k=k,
+                num_distractors=distractors,
+                seed=seed + 1,  # Different seed for validation
+            )
             logger.info(
                 f"Using distractor dataset with {distractors} distractors per scene"
             )
+            logger.info(f"Training set size: {len(train_dataset)}")
+            logger.info(f"Validation set size: {len(val_dataset)}")
         else:
-            # Use curriculum learning: start with easier scenes
+            # Create train/val split for regular dataset
+            total_scenes = n_steps * batch_size
+            train_size = int(0.8 * total_scenes)
+            val_size = total_scenes - train_size
+
             if use_curriculum:
                 curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
-                dataset = ReferentialGameDataset(
-                    n_scenes=n_steps * batch_size, k=curriculum_k, seed=seed
+                train_dataset = ReferentialGameDataset(
+                    n_scenes=train_size, k=curriculum_k, seed=seed
+                )
+                val_dataset = ReferentialGameDataset(
+                    n_scenes=val_size, k=curriculum_k, seed=seed + 1
                 )
                 logger.info(
                     f"Using curriculum learning: starting with k={curriculum_k}"
                 )
             else:
-                dataset = ReferentialGameDataset(
-                    n_scenes=n_steps * batch_size, k=k, seed=seed
+                train_dataset = ReferentialGameDataset(
+                    n_scenes=train_size, k=k, seed=seed
+                )
+                val_dataset = ReferentialGameDataset(
+                    n_scenes=val_size, k=k, seed=seed + 1
                 )
                 logger.info(f"Using fixed difficulty: k={k}")
 
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+            logger.info(f"Training set size: {len(train_dataset)}")
+            logger.info(f"Validation set size: {len(val_dataset)}")
+
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # Training loop
     logger.info(f"Starting training for {n_steps} steps")
@@ -817,14 +924,14 @@ def train(
         )
 
     step = 0
-    dataloader_iter = iter(dataloader)
+    dataloader_iter = iter(train_dataloader)
 
     while step < n_steps:
         try:
             batch = next(dataloader_iter)
         except StopIteration:
             # Restart dataloader if we run out of data
-            dataloader_iter = iter(dataloader)
+            dataloader_iter = iter(train_dataloader)
             batch = next(dataloader_iter)
 
         # Compute advanced temperature annealing with cosine schedule
@@ -871,13 +978,24 @@ def train(
 
         step += 1
 
-        # Early stopping check - check every step for optimal peak detection
-        if early_stopping is not None:
-            should_stop = early_stopping(metrics["accuracy"], listener)
+        # Early stopping check - use validation accuracy for proper generalization
+        if (
+            early_stopping is not None and step % 10 == 0
+        ):  # Check every 10 steps to reduce overhead
+            val_accuracy = evaluate_validation(
+                speaker,
+                listener,
+                val_dataloader,
+                config,
+                device,
+                temperature,
+                use_sequence_models,
+            )
+            should_stop = early_stopping(val_accuracy, listener)
             if should_stop:
                 logger.info(
                     f"Early stopping triggered at step {step}. "
-                    f"Best accuracy: {early_stopping.best_score:.4f}"
+                    f"Best validation accuracy: {early_stopping.best_score:.4f}"
                 )
                 break
 
