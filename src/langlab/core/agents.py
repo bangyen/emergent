@@ -221,62 +221,47 @@ class Listener(nn.Module):
         if config.multimodal:
             message_input_dim += config.message_length * config.gesture_size
 
-        # Transformer-based message encoder
-        self.message_embedding = nn.Linear(message_input_dim, config.hidden_size)
-        self.message_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=config.hidden_size,
-                nhead=8,
-                dim_feedforward=config.hidden_size * 4,
-                dropout=0.1,
-                activation="relu",
-                batch_first=True,
-            ),
-            num_layers=3,
+        # Simplified message encoder with better regularization
+        self.message_encoder = nn.Sequential(
+            nn.Linear(message_input_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.3),  # Increased dropout
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.3),  # Increased dropout
         )
-        self.message_norm = nn.LayerNorm(config.hidden_size)
 
-        # Transformer-based object encoder
-        self.object_embedding = nn.Linear(self.object_dim, config.hidden_size)
-        self.object_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=config.hidden_size,
-                nhead=8,
-                dim_feedforward=config.hidden_size * 4,
-                dropout=0.1,
-                activation="relu",
-                batch_first=True,
-            ),
-            num_layers=3,
+        # Simplified object encoder with better regularization
+        self.object_encoder = nn.Sequential(
+            nn.Linear(self.object_dim, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.3),  # Increased dropout
+            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.LayerNorm(config.hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.3),  # Increased dropout
         )
-        self.object_norm = nn.LayerNorm(config.hidden_size)
 
         # Residual projection for object encoder
         self.object_residual_proj = nn.Linear(self.object_dim, config.hidden_size)
 
-        # Enhanced scoring network with attention
+        # Simplified attention mechanism
         self.attention = nn.MultiheadAttention(
-            embed_dim=config.hidden_size, num_heads=8, dropout=0.1, batch_first=True
-        )
-
-        # Cross-attention for better message-object alignment
-        self.cross_attention = nn.MultiheadAttention(
-            embed_dim=config.hidden_size, num_heads=8, dropout=0.1, batch_first=True
+            embed_dim=config.hidden_size, num_heads=4, dropout=0.3, batch_first=True
         )
 
         # Layer normalization for attention outputs
         self.attention_norm = nn.LayerNorm(config.hidden_size)
-        self.cross_attention_norm = nn.LayerNorm(config.hidden_size)
 
         self.scorer = nn.Sequential(
             nn.Linear(config.hidden_size * 2, config.hidden_size),
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(config.hidden_size, config.hidden_size // 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(config.hidden_size // 2, 1),
+            nn.Dropout(0.3),  # Increased dropout
+            nn.Linear(config.hidden_size, 1),
         )
 
         # Initialize weights with improved initialization
@@ -346,29 +331,17 @@ class Listener(nn.Module):
         else:
             multimodal_input = message_onehot
 
-        # Encode message using transformer
-        message_embedded = self.message_embedding(
+        # Encode message using simplified encoder
+        message_features = self.message_encoder(
             multimodal_input
         )  # (batch_size, hidden_size)
-        message_features = self.message_transformer(
-            message_embedded.unsqueeze(1)
-        )  # (batch_size, 1, hidden_size)
-        message_features = self.message_norm(
-            message_features.squeeze(1)
-        )  # (batch_size, hidden_size)
 
-        # Encode all candidate objects using transformer
+        # Encode all candidate objects using simplified encoder
         candidate_flat = candidate_objects.view(
             -1, self.object_dim
         )  # (batch_size * num_candidates, object_dim)
-        candidate_embedded = self.object_embedding(
+        candidate_features = self.object_encoder(
             candidate_flat
-        )  # (batch_size * num_candidates, hidden_size)
-        candidate_features = self.object_transformer(
-            candidate_embedded.unsqueeze(1)
-        )  # (batch_size * num_candidates, 1, hidden_size)
-        candidate_features = self.object_norm(
-            candidate_features.squeeze(1)
         )  # (batch_size * num_candidates, hidden_size)
         candidate_residual = self.object_residual_proj(candidate_flat)
         candidate_features = candidate_features + candidate_residual
@@ -376,28 +349,18 @@ class Listener(nn.Module):
             batch_size, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # Apply cross-attention mechanism between message and candidates
+        # Apply simplified attention mechanism
         message_features_expanded = message_features.unsqueeze(1).expand(
             -1, num_candidates, -1
         )  # (batch_size, num_candidates, hidden_size)
 
-        # First, apply self-attention to candidate features
-        candidate_self_attended, _ = self.attention(
-            query=candidate_features,
+        # Apply attention to weight candidate features based on message
+        attended_features, _ = self.attention(
+            query=message_features_expanded,
             key=candidate_features,
             value=candidate_features,
         )  # (batch_size, num_candidates, hidden_size)
-        candidate_self_attended = self.attention_norm(
-            candidate_self_attended + candidate_features
-        )
-
-        # Then apply cross-attention between message and candidates
-        attended_features, _ = self.cross_attention(
-            query=message_features_expanded,
-            key=candidate_self_attended,
-            value=candidate_self_attended,
-        )  # (batch_size, num_candidates, hidden_size)
-        attended_features = self.cross_attention_norm(
+        attended_features = self.attention_norm(
             attended_features + message_features_expanded
         )
 
