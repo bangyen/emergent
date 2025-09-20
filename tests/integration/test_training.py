@@ -5,19 +5,13 @@ population dynamics, and contact experiments.
 """
 
 import pytest
-import torch
-import tempfile
-import os
-from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 from langlab.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from langlab.config import CommunicationConfig
 from langlab.data import ReferentialGameDataset
 from langlab.train import train, MovingAverage
 from langlab.population import train_population, PopulationManager
 from langlab.contact import train_contact_experiment
-from langlab.utils import set_seed
 
 
 @pytest.mark.integration

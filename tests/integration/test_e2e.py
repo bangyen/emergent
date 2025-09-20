@@ -6,14 +6,10 @@ through training to analysis and reporting.
 
 import pytest
 import torch
-import tempfile
-import os
 import json
-from pathlib import Path
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch
 
 from langlab.agents import Speaker, Listener
-from langlab.config import CommunicationConfig
 from langlab.data import ReferentialGameDataset
 from langlab.world import sample_scene, make_object
 from langlab.analysis import (
