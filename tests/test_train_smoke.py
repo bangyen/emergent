@@ -53,6 +53,7 @@ class TestTrainingSmoke:
             speaker_optimizer,
             listener_optimizer,
             speaker_baseline,
+            config,  # Add config parameter
             lambda_speaker=1.0,
         )
 

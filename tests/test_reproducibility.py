@@ -58,7 +58,7 @@ def test_deterministic_sampling_with_seed(
         set_seed(deterministic_config.seed)
 
         # Speaker forward pass
-        logits, tokens = speaker(object_encoding)
+        logits, tokens, _, _ = speaker(object_encoding)
 
         # Channel forward pass
         channel_tokens = channel.send(logits)
@@ -127,7 +127,7 @@ def test_deterministic_with_different_seeds() -> None:
         run_results = []
         for _ in range(2):
             set_seed(seed)
-            logits, tokens = speaker(object_encoding)
+            logits, tokens, _, _ = speaker(object_encoding)
             run_results.append({"logits": logits.clone(), "tokens": tokens.clone()})
 
         # Results within same seed should be identical
@@ -179,10 +179,10 @@ def test_reproducible_agent_initialization() -> None:
     object_encoding = torch.randn(batch_size, input_dim)
 
     set_seed(config.seed)
-    logits1, tokens1 = speaker1(object_encoding)
+    logits1, tokens1, _, _ = speaker1(object_encoding)
 
     set_seed(config.seed)
-    logits2, tokens2 = speaker2(object_encoding)
+    logits2, tokens2, _, _ = speaker2(object_encoding)
 
     # Results should be identical
     assert torch.allclose(logits1, logits2), "Forward pass results should be identical"
@@ -239,13 +239,13 @@ def test_training_mode_stochastic_behavior(
     # Training mode (stochastic)
     speaker.train()
     set_seed(deterministic_config.seed)
-    logits_train, tokens_train = speaker(object_encoding)
+    logits_train, tokens_train, _, _ = speaker(object_encoding)
     channel_tokens_train = channel.send(logits_train)
 
     # Evaluation mode (deterministic)
     speaker.eval()
     set_seed(deterministic_config.seed)
-    logits_eval, tokens_eval = speaker(object_encoding)
+    logits_eval, tokens_eval, _, _ = speaker(object_encoding)
     channel_tokens_eval = channel.send(logits_eval)
 
     # Logits should be identical (no randomness in forward pass)
