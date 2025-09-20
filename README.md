@@ -3,7 +3,9 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Tests](https://img.shields.io/badge/tests-passing-green.svg)](https://github.com/yourusername/langlab/actions)
+[![Tests](https://img.shields.io/badge/tests-passing-green.svg)](https://github.com/bangyen/emergent/actions)
+[![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](https://mypy.readthedocs.io/)
+[![Linting: ruff](https://img.shields.io/badge/linting-ruff-red.svg)](https://github.com/astral-sh/ruff)
 
 A comprehensive research framework for studying **emergent language** in multi-agent referential games. This project explores how artificial agents develop communication protocols through interaction, investigating phenomena like compositional language, cultural transmission, and pragmatic inference.
 
@@ -120,8 +122,8 @@ print(f"Target object: {scene_objects[target_idx]}")
 | `langlab ablate` | Run ablation studies across parameter configurations |
 | `langlab sample` | Generate and display sample scenes |
 | `langlab dataset` | Generate and analyze referential game datasets |
-| `langlab dash` | Launch interactive Streamlit dashboard |
-| `langlab report` | Generate ablation study reports |
+| `langlab dash` | Launch interactive Streamlit dashboard for experiment visualization |
+| `langlab report` | Generate ablation study reports from experiment results |
 | `langlab info` | Display system information |
 
 ### 1. **Basic Referential Games**
@@ -146,7 +148,12 @@ langlab train-grid --episodes 500 --grid 5 --message-length 3
 
 ### 5. **Ablation Studies**
 ```bash
-langlab ablate --vocab-sizes "6,12,24" --noise-levels "0,0.05,0.1"
+langlab ablate --vocab-sizes "6,12,24" --noise-levels "0,0.05,0.1" --steps 1000
+```
+
+### 6. **Report Generation**
+```bash
+langlab report --input "outputs/experiments/**/metrics.json"
 ```
 
 ## 📊 Results & Analysis
@@ -172,16 +179,31 @@ Our experiments show that:
 
 ```
 src/langlab/
-├── agents.py          # Speaker/Listener neural architectures
-├── world.py           # Object generation and scene sampling
-├── channel.py         # Communication channel implementation
-├── data.py            # Dataset and data loading utilities
-├── train.py           # Training loops and optimization
-├── population.py      # Population management and dynamics
-├── contact.py         # Cross-population interaction experiments
-├── analysis.py        # Language analysis and metrics
-├── app.py            # Streamlit dashboard
-└── cli.py            # Command-line interface
+├── core/                 # Core components
+│   ├── agents.py         # Speaker/Listener neural architectures
+│   ├── channel.py        # Communication channel implementation
+│   └── config.py         # Configuration dataclasses
+├── data/                 # Data handling
+│   ├── world.py          # Object generation and scene sampling
+│   └── data.py           # Dataset and data loading utilities
+├── training/             # Training modules
+│   ├── train.py          # Basic training loops and optimization
+│   ├── train_grounded.py # Grounded training implementation
+│   └── grounding.py      # Grounded learning utilities
+├── experiments/          # Experiment types
+│   ├── population.py     # Population management and dynamics
+│   ├── contact.py        # Cross-population interaction experiments
+│   ├── ablate.py         # Ablation study framework
+│   └── grid.py           # Grid world experiments
+├── analysis/             # Analysis and evaluation
+│   ├── analysis.py       # Language analysis and metrics
+│   ├── eval.py           # Model evaluation utilities
+│   └── report.py         # Report generation
+├── apps/                 # Applications
+│   ├── app.py            # Streamlit dashboard
+│   └── cli.py            # Command-line interface
+└── utils/                # Utilities
+    └── utils.py          # Common utility functions
 ```
 
 ### Key Design Principles

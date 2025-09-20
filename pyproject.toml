@@ -51,7 +51,7 @@ dev = [
 ]
 
 [project.scripts]
-langlab = "langlab.cli:main"
+langlab = "langlab.apps.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/bangyen/emergent"

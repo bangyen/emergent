@@ -415,7 +415,7 @@ class ContactExperiment:
                     ]
 
                     # Generate messages
-                    _, message_tokens = pair.speaker(target_objects)
+                    _, message_tokens, _, _ = pair.speaker(target_objects)
                     messages.append(message_tokens)
 
         return messages
