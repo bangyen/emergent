@@ -255,8 +255,8 @@ def compute_zipf_slope_from_checkpoint(
     Returns:
         Zipf slope value.
     """
-    from .agents import Speaker
-    from .data import ReferentialGameDataset
+    from ..core.agents import Speaker
+    from ..data.data import ReferentialGameDataset
     from torch.utils.data import DataLoader
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -287,7 +287,7 @@ def compute_zipf_slope_from_checkpoint(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Generate messages
-            _, message_tokens = speaker(target_objects)
+            _, message_tokens, _, _ = speaker(target_objects)
             all_messages.append(message_tokens)
 
     # Concatenate all messages
