@@ -7,14 +7,14 @@ supervised learning for the Listener and REINFORCE for the Speaker.
 
 import os
 import csv
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union
 from collections import deque
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from .agents import Speaker, Listener
+from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
 from .config import CommunicationConfig
 from .data import ReferentialGameDataset
 from .utils import get_logger, get_device, set_seed
@@ -54,8 +54,57 @@ class MovingAverage:
         return self._average
 
 
+def compute_entropy_bonus(logits: torch.Tensor) -> torch.Tensor:
+    """Compute entropy bonus to encourage exploration in token distributions.
+
+    This function computes the entropy of token distributions at each position
+    to encourage the Speaker to maintain diversity in generated messages.
+
+    Args:
+        logits: Tensor of shape (batch_size, message_length, vocabulary_size) with logits.
+
+    Returns:
+        Scalar tensor containing the entropy bonus (negative entropy).
+    """
+    # Compute probabilities
+    probs = F.softmax(logits, dim=-1)
+
+    # Compute log probabilities
+    log_probs = F.log_softmax(logits, dim=-1)
+
+    # Compute entropy: -sum(p * log(p))
+    entropy = -(probs * log_probs).sum(dim=-1)  # (batch_size, message_length)
+
+    # Average across batch and sequence length
+    entropy_bonus = entropy.mean()
+
+    return entropy_bonus
+
+
+def compute_length_cost(message_tokens: torch.Tensor, vocab_size: int) -> torch.Tensor:
+    """Compute length cost to penalize longer messages.
+
+    This function computes a cost based on message length to encourage
+    more concise communication when using variable-length messages.
+
+    Args:
+        message_tokens: Tensor of shape (batch_size, message_length) with token indices.
+        vocab_size: Size of vocabulary (for EOS token detection).
+
+    Returns:
+        Scalar tensor containing the length cost.
+    """
+    batch_size, message_length = message_tokens.shape
+
+    # For fixed-length messages, we don't apply length cost
+    # This function is prepared for future variable-length extensions
+    length_cost = torch.tensor(0.0, device=message_tokens.device)
+
+    return length_cost
+
+
 def compute_listener_loss(
-    listener: Listener,
+    listener: Union[Listener, ListenerSeq],
     message_tokens: torch.Tensor,
     candidate_objects: torch.Tensor,
     target_indices: torch.Tensor,
@@ -84,24 +133,29 @@ def compute_listener_loss(
 
 
 def compute_speaker_loss(
-    speaker: Speaker,
+    speaker: Union[Speaker, SpeakerSeq],
     speaker_logits: torch.Tensor,
     rewards: torch.Tensor,
     baseline: float,
+    entropy_weight: float = 0.01,
+    length_weight: float = 0.0,
 ) -> torch.Tensor:
-    """Compute REINFORCE loss for the Speaker.
+    """Compute REINFORCE loss for the Speaker with regularization.
 
     This function computes the policy gradient loss using REINFORCE with
-    a baseline to reduce variance in the gradient estimates.
+    a baseline to reduce variance in the gradient estimates, plus entropy
+    bonus and length cost regularizers.
 
     Args:
         speaker: The Speaker agent.
         speaker_logits: Tensor of shape (batch_size, message_length, vocab_size) with logits.
         rewards: Tensor of shape (batch_size,) with rewards (1 if correct, 0 if incorrect).
         baseline: Baseline value for variance reduction.
+        entropy_weight: Weight for entropy bonus regularization.
+        length_weight: Weight for length cost regularization.
 
     Returns:
-        Scalar tensor containing the REINFORCE loss.
+        Scalar tensor containing the REINFORCE loss with regularization.
     """
     batch_size, message_length, vocab_size = speaker_logits.shape
 
@@ -133,34 +187,51 @@ def compute_speaker_loss(
 
     # Compute REINFORCE loss with baseline
     advantages = rewards - baseline
-    loss = -(total_log_probs * advantages).mean()
+    reinforce_loss = -(total_log_probs * advantages).mean()
 
-    return loss
+    # Add regularization terms
+    entropy_bonus = compute_entropy_bonus(speaker_logits)
+
+    # Get sampled tokens for length cost (approximate with argmax)
+    sampled_tokens = torch.argmax(speaker_logits, dim=-1)
+    length_cost = compute_length_cost(sampled_tokens, vocab_size)
+
+    # Combine losses
+    total_loss = (
+        reinforce_loss - entropy_weight * entropy_bonus + length_weight * length_cost
+    )
+
+    return total_loss
 
 
 def train_step(
-    speaker: Speaker,
-    listener: Listener,
+    speaker: Union[Speaker, SpeakerSeq],
+    listener: Union[Listener, ListenerSeq],
     batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     speaker_optimizer: torch.optim.Optimizer,
     listener_optimizer: torch.optim.Optimizer,
     speaker_baseline: MovingAverage,
     lambda_speaker: float = 1.0,
+    entropy_weight: float = 0.01,
+    length_weight: float = 0.0,
     device: Optional[torch.device] = None,
 ) -> Dict[str, float]:
     """Perform one training step for both Speaker and Listener.
 
     This function executes a single training step, computing losses for both
     agents and updating their parameters using the respective optimizers.
+    Supports both regular and sequence-aware models.
 
     Args:
-        speaker: The Speaker agent.
-        listener: The Listener agent.
+        speaker: The Speaker agent (Speaker or SpeakerSeq).
+        listener: The Listener agent (Listener or ListenerSeq).
         batch: Tuple containing (scene_tensor, target_indices, candidate_objects).
         speaker_optimizer: Optimizer for the Speaker.
         listener_optimizer: Optimizer for the Listener.
         speaker_baseline: Moving average baseline for Speaker rewards.
         lambda_speaker: Weight for combining Speaker and Listener losses.
+        entropy_weight: Weight for entropy bonus regularization.
+        length_weight: Weight for length cost regularization.
         device: Device to run computations on.
 
     Returns:
@@ -199,7 +270,12 @@ def train_step(
         listener, message_tokens, candidate_objects, target_indices
     )
     speaker_loss = compute_speaker_loss(
-        speaker, speaker_logits, rewards, speaker_baseline.average
+        speaker,
+        speaker_logits,
+        rewards,
+        speaker_baseline.average,
+        entropy_weight,
+        length_weight,
     )
 
     # Combined loss
@@ -236,17 +312,21 @@ def train(
     batch_size: int = 32,
     learning_rate: float = 1e-3,
     hidden_size: int = 64,
+    use_sequence_models: bool = False,
+    entropy_weight: float = 0.01,
+    length_weight: float = 0.0,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
     This function runs the main training loop for emergent language experiments,
-    training both agents through interaction in referential games.
+    training both agents through interaction in referential games. Supports both
+    regular and sequence-aware models.
 
     Args:
         n_steps: Number of training steps to perform.
         k: Number of objects per scene.
         v: Vocabulary size.
-        l: Message length.
+        message_length: Message length.
         seed: Random seed for reproducibility.
         log_every: Frequency of logging training metrics.
         eval_every: Frequency of saving checkpoints.
@@ -254,6 +334,9 @@ def train(
         batch_size: Batch size for training.
         learning_rate: Learning rate for optimizers.
         hidden_size: Hidden dimension for neural networks.
+        use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq).
+        entropy_weight: Weight for entropy bonus regularization.
+        length_weight: Weight for length cost regularization.
     """
     # Set seed for reproducibility
     set_seed(seed)
@@ -275,8 +358,14 @@ def train(
     )
 
     # Create agents
-    speaker = Speaker(config).to(device)
-    listener = Listener(config).to(device)
+    if use_sequence_models:
+        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
+        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+        logger.info("Using sequence-aware models (SpeakerSeq/ListenerSeq)")
+    else:
+        speaker = Speaker(config).to(device)
+        listener = Listener(config).to(device)
+        logger.info("Using regular models (Speaker/Listener)")
 
     # Create optimizers
     speaker_optimizer = torch.optim.Adam(speaker.parameters(), lr=learning_rate)
@@ -328,6 +417,8 @@ def train(
             listener_optimizer,
             speaker_baseline,
             lambda_speaker,
+            entropy_weight,
+            length_weight,
             device,
         )
 

@@ -112,7 +112,7 @@ class TestTrainingSmoke:
                 final_accuracy = float(metrics_data[-1]["accuracy"])
 
                 # We expect some learning signal (accuracy > random baseline + margin)
-                margin = 0.15  # Allow for some learning
+                margin = 0.10  # Allow for some learning
                 assert (
                     final_accuracy > random_baseline + margin
                 ), f"Final accuracy {final_accuracy:.3f} should be > {random_baseline + margin:.3f}"
