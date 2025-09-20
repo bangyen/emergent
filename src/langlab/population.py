@@ -371,7 +371,7 @@ class PopulationManager:
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            speaker_logits, message_tokens = speaker_pair.speaker(target_objects)
+            speaker_logits, message_tokens, _, _ = speaker_pair.speaker(target_objects)
 
             # Listener makes predictions
             listener_probs = listener_pair.listener(message_tokens, candidate_objects)
