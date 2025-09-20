@@ -283,6 +283,52 @@ def mixup_loss(
     return mixed_inputs, y_a, y_b, lam
 
 
+def add_noise_augmentation(
+    objects: torch.Tensor, noise_std: float = 0.1
+) -> torch.Tensor:
+    """Add Gaussian noise to object encodings for data augmentation.
+
+    Args:
+        objects: Object encodings tensor of shape (batch_size, num_objects, object_dim).
+        noise_std: Standard deviation of Gaussian noise.
+
+    Returns:
+        Augmented object encodings with added noise.
+    """
+    noise = torch.randn_like(objects) * noise_std
+    return objects + noise
+
+
+def random_object_permutation(
+    objects: torch.Tensor, target_indices: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Randomly permute object order in scenes for data augmentation.
+
+    Args:
+        objects: Object encodings tensor of shape (batch_size, num_objects, object_dim).
+        target_indices: Target indices tensor of shape (batch_size,).
+
+    Returns:
+        Tuple of (permuted_objects, updated_target_indices).
+    """
+    batch_size, num_objects = objects.size(0), objects.size(1)
+
+    # Generate random permutations for each batch
+    permutations = torch.stack([torch.randperm(num_objects) for _ in range(batch_size)])
+
+    # Apply permutations
+    permuted_objects = torch.gather(
+        objects, 1, permutations.unsqueeze(-1).expand(-1, -1, objects.size(-1))
+    )
+
+    # Update target indices
+    updated_target_indices = torch.gather(
+        permutations, 1, target_indices.unsqueeze(1)
+    ).squeeze(1)
+
+    return permuted_objects, updated_target_indices
+
+
 def compute_entropy_bonus(logits: torch.Tensor) -> torch.Tensor:
     """Compute entropy bonus to encourage exploration in token distributions.
 
@@ -362,9 +408,17 @@ def compute_listener_loss(
     # Use standard cross-entropy loss since listener returns probabilities
     # Convert probabilities to logits for cross-entropy
     logits = torch.log(probabilities + 1e-8)  # Add small epsilon to avoid log(0)
-    loss = F.cross_entropy(logits, target_indices)
 
-    return loss
+    # Apply label smoothing for better generalization
+    loss = F.cross_entropy(logits, target_indices, label_smoothing=0.1)
+
+    # Add focal loss for hard example mining
+    focal_loss_value = focal_loss(logits, target_indices, alpha=1.0, gamma=2.0)
+
+    # Combine losses
+    total_loss = 0.7 * loss + 0.3 * focal_loss_value
+
+    return total_loss
 
 
 def compute_speaker_loss(
@@ -580,6 +634,19 @@ def train_step(
     target_indices = target_indices.to(device)
     candidate_objects = candidate_objects.to(device)
 
+    # Apply data augmentation
+    if torch.rand(1).item() < 0.5:  # 50% chance of augmentation
+        # Random object permutation
+        scene_tensor, target_indices = random_object_permutation(
+            scene_tensor, target_indices
+        )
+        candidate_objects = scene_tensor  # Update candidate objects
+
+    if torch.rand(1).item() < 0.3:  # 30% chance of noise augmentation
+        # Add noise to object encodings
+        scene_tensor = add_noise_augmentation(scene_tensor, noise_std=0.05)
+        candidate_objects = scene_tensor  # Update candidate objects
+
     # Extract target objects from scene tensor
     batch_size = scene_tensor.size(0)
     target_objects = scene_tensor[torch.arange(batch_size), target_indices]
@@ -787,23 +854,49 @@ def train(
         eps=1e-8,
     )
 
-    # Enhanced learning rate schedulers with cosine annealing
-    speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-    )
-    listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-    )
-
-    # Add learning rate warmup for better convergence
+    # Enhanced learning rate schedulers with cosine annealing and warmup
     if use_warmup:
         warmup_steps = min(500, n_steps // 10)
-        speaker_warmup = torch.optim.lr_scheduler.LinearLR(
-            speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
+        # Create combined scheduler with warmup + cosine annealing
+        speaker_scheduler = torch.optim.lr_scheduler.SequentialLR(
+            speaker_optimizer,
+            schedulers=[
+                torch.optim.lr_scheduler.LinearLR(
+                    speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
+                ),
+                torch.optim.lr_scheduler.CosineAnnealingLR(
+                    speaker_optimizer,
+                    T_max=n_steps - warmup_steps,
+                    eta_min=learning_rate * 0.01,
+                ),
+            ],
+            milestones=[warmup_steps],
         )
-        listener_warmup = torch.optim.lr_scheduler.LinearLR(
-            listener_optimizer, start_factor=0.1, total_iters=warmup_steps
+        listener_scheduler = torch.optim.lr_scheduler.SequentialLR(
+            listener_optimizer,
+            schedulers=[
+                torch.optim.lr_scheduler.LinearLR(
+                    listener_optimizer, start_factor=0.1, total_iters=warmup_steps
+                ),
+                torch.optim.lr_scheduler.CosineAnnealingLR(
+                    listener_optimizer,
+                    T_max=n_steps - warmup_steps,
+                    eta_min=learning_rate * 0.01,
+                ),
+            ],
+            milestones=[warmup_steps],
         )
+    else:
+        speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+        )
+        listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+        )
+
+    # Log warmup information
+    if use_warmup:
+        warmup_steps = min(500, n_steps // 10)
         logger.info(f"Using learning rate warmup for {warmup_steps} steps")
 
     # Create baseline and EMA for better training stability
@@ -971,10 +1064,11 @@ def train(
             warmup_steps if use_warmup else 0,
         )
 
-        # Update warmup schedulers if enabled
-        if use_warmup and "speaker_warmup" in locals() and step <= warmup_steps:
-            speaker_warmup.step()
-            listener_warmup.step()
+        # Update schedulers
+        if speaker_scheduler is not None:
+            speaker_scheduler.step()
+        if listener_scheduler is not None:
+            listener_scheduler.step()
 
         step += 1
 
