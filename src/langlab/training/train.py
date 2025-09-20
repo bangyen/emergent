@@ -289,6 +289,10 @@ def train_step(
     speaker_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     listener_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     step: int = 1,
+    use_ema: bool = False,
+    speaker_ema: Optional[Union[Speaker, SpeakerSeq]] = None,
+    listener_ema: Optional[Union[Listener, ListenerSeq]] = None,
+    ema_decay: float = 0.999,
 ) -> Dict[str, float]:
     """Perform one training step for both Speaker and Listener.
 
@@ -391,6 +395,16 @@ def train_step(
     speaker_optimizer.step()
     listener_optimizer.step()
 
+    # Update EMA models
+    if use_ema and speaker_ema is not None and listener_ema is not None:
+        with torch.no_grad():
+            for ema_param, param in zip(speaker_ema.parameters(), speaker.parameters()):
+                ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
+            for ema_param, param in zip(
+                listener_ema.parameters(), listener.parameters()
+            ):
+                ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
+
     # Update learning rate schedulers after optimizer steps
     if speaker_scheduler is not None and step > 1:
         speaker_scheduler.step()
@@ -436,6 +450,9 @@ def train(
     distractors: int = 0,
     temperature_start: float = 2.0,
     temperature_end: float = 0.5,
+    use_curriculum: bool = True,
+    use_warmup: bool = True,
+    use_ema: bool = True,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -494,20 +511,53 @@ def train(
         listener = Listener(config).to(device)
         logger.info("Using regular models (Speaker/Listener)")
 
-    # Create optimizers with learning rate scheduling
-    speaker_optimizer = torch.optim.Adam(speaker.parameters(), lr=learning_rate)
-    listener_optimizer = torch.optim.Adam(listener.parameters(), lr=learning_rate)
-
-    # Learning rate schedulers for better convergence
-    speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    # Create optimizers with improved settings
+    speaker_optimizer = torch.optim.AdamW(
+        speaker.parameters(),
+        lr=learning_rate,
+        weight_decay=1e-4,
+        betas=(0.9, 0.999),
+        eps=1e-8,
     )
-    listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    listener_optimizer = torch.optim.AdamW(
+        listener.parameters(),
+        lr=learning_rate,
+        weight_decay=1e-4,
+        betas=(0.9, 0.999),
+        eps=1e-8,
     )
 
-    # Create baseline
+    # Enhanced learning rate schedulers with warmup
+    if use_warmup:
+        warmup_steps = min(1000, n_steps // 10)
+        speaker_scheduler = torch.optim.lr_scheduler.LinearLR(
+            speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
+        )
+        listener_scheduler = torch.optim.lr_scheduler.LinearLR(
+            listener_optimizer, start_factor=0.1, total_iters=warmup_steps
+        )
+    else:
+        speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+        )
+        listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+        )
+
+    # Create baseline and EMA for better training stability
     speaker_baseline = MovingAverage(window_size=100)
+
+    # Exponential Moving Average for model parameters
+    if use_ema:
+        from copy import deepcopy
+
+        speaker_ema = deepcopy(speaker)
+        listener_ema = deepcopy(listener)
+        ema_decay = 0.999
+        logger.info("Using Exponential Moving Average for model parameters")
+    else:
+        speaker_ema = None
+        listener_ema = None
 
     # Create dataset with curriculum learning
     if heldout_pairs is not None:
@@ -534,11 +584,19 @@ def train(
             )
         else:
             # Use curriculum learning: start with easier scenes
-            curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
-            dataset = ReferentialGameDataset(
-                n_scenes=n_steps * batch_size, k=curriculum_k, seed=seed
-            )
-            logger.info(f"Using curriculum learning: starting with k={curriculum_k}")
+            if use_curriculum:
+                curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
+                dataset = ReferentialGameDataset(
+                    n_scenes=n_steps * batch_size, k=curriculum_k, seed=seed
+                )
+                logger.info(
+                    f"Using curriculum learning: starting with k={curriculum_k}"
+                )
+            else:
+                dataset = ReferentialGameDataset(
+                    n_scenes=n_steps * batch_size, k=k, seed=seed
+                )
+                logger.info(f"Using fixed difficulty: k={k}")
 
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -602,6 +660,10 @@ def train(
             speaker_scheduler,
             listener_scheduler,
             step + 1,  # Pass the step number for scheduler stepping
+            use_ema,
+            speaker_ema,
+            listener_ema,
+            ema_decay,
         )
 
         step += 1

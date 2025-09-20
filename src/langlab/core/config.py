@@ -28,6 +28,9 @@ class CommunicationConfig:
         pragmatic: Whether to enable pragmatic inference (default: False).
         use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq) (default: False).
         seed: Random seed for reproducibility (default: None).
+        use_attention: Whether to use attention mechanisms in Listener (default: True).
+        use_residual: Whether to use residual connections (default: True).
+        dropout_rate: Dropout rate for regularization (default: 0.1).
     """
 
     vocabulary_size: int = 10
@@ -40,6 +43,9 @@ class CommunicationConfig:
     pragmatic: bool = False
     use_sequence_models: bool = False
     seed: Optional[int] = None
+    use_attention: bool = True
+    use_residual: bool = True
+    dropout_rate: float = 0.1
 
     def __post_init__(self) -> None:
         """Validate configuration parameters after initialization."""
@@ -55,3 +61,5 @@ class CommunicationConfig:
             raise ValueError("gesture_size must be positive")
         if self.distractors < 0:
             raise ValueError("distractors must be non-negative")
+        if not 0.0 <= self.dropout_rate <= 1.0:
+            raise ValueError("dropout_rate must be between 0.0 and 1.0")
