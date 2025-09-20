@@ -83,7 +83,9 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 @click.option("--steps", default=5000, help="Number of training steps")
 @click.option("--k", default=5, help="Number of objects per scene")
 @click.option("--v", default=10, help="Vocabulary size")
-@click.option("--message-length", default=1, help="Message length")
+@click.option(
+    "--l", "--message-length", "message_length", default=1, help="Message length"
+)
 @click.option("--seed", default=7, help="Random seed")
 @click.option("--log-every", default=100, help="Logging frequency")
 @click.option("--eval-every", default=500, help="Checkpoint frequency")
@@ -91,6 +93,17 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 @click.option("--batch-size", default=32, help="Batch size")
 @click.option("--learning-rate", default=1e-3, help="Learning rate")
 @click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option(
+    "--use-sequence-models",
+    is_flag=True,
+    help="Use sequence-aware models (SpeakerSeq/ListenerSeq)",
+)
+@click.option(
+    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
+)
+@click.option(
+    "--length-weight", default=0.0, help="Weight for length cost regularization"
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -103,11 +116,16 @@ def train_cmd(
     batch_size: int,
     learning_rate: float,
     hidden_size: int,
+    use_sequence_models: bool,
+    entropy_weight: float,
+    length_weight: float,
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
         f"Starting training: steps={steps}, k={k}, v={v}, message_length={message_length}, seed={seed}"
     )
+    if use_sequence_models:
+        logger.info("Using sequence-aware models with autoregressive generation")
 
     try:
         train(
@@ -122,6 +140,9 @@ def train_cmd(
             batch_size=batch_size,
             learning_rate=learning_rate,
             hidden_size=hidden_size,
+            use_sequence_models=use_sequence_models,
+            entropy_weight=entropy_weight,
+            length_weight=length_weight,
         )
         click.echo("Training completed successfully!")
 
