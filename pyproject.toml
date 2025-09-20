@@ -6,19 +6,20 @@ build-backend = "setuptools.build_meta"
 py-modules = []
 
 [project]
-name = "package-name"
+name = "langlab"
 version = "0.1.0"
-description = "A Python package template"
+description = "Language Emergence Lab - studying proto-language in referential games"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Language Emergence Lab", email = "langlab@example.com"},
 ]
-keywords = ["python", "template", "package"]
+keywords = ["language", "emergence", "referential-game", "proto-language", "ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -26,10 +27,13 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
     "click>=8.0.0",
+    "torch>=1.9.0",
+    "numpy>=1.21.0",
 ]
 
 [project.optional-dependencies]
@@ -43,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-package-name = "package_name.cli:main"
+langlab = "langlab.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/package-name"
