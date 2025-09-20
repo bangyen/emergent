@@ -230,13 +230,19 @@ def make_compositional_splits(
     iid_targets: List[int] = []
     compo_targets: List[int] = []
 
+    # Calculate target sizes for each split
+    train_size = int(n_scenes * 0.6)
+    iid_size = int(n_scenes * 0.2)
+    compo_size = n_scenes - train_size - iid_size
+
     # Generate more scenes than needed to ensure we get enough for each split
-    max_attempts = n_scenes * 3
+    max_attempts = n_scenes * 10  # Increased to ensure we get enough scenes
     scene_count = 0
 
-    while (
-        scene_count < max_attempts
-        and (len(train_scenes) + len(iid_scenes) + len(compo_scenes)) < n_scenes
+    while scene_count < max_attempts and (
+        len(train_scenes) < train_size
+        or len(iid_scenes) < iid_size
+        or len(compo_scenes) < compo_size
     ):
         # Generate a scene
         scene_objects, target_idx = sample_scene(
@@ -252,16 +258,16 @@ def make_compositional_splits(
         has_heldout = bool(scene_combinations.intersection(heldout_objects))
 
         # Assign to appropriate split
-        if has_heldout:
+        if has_heldout and len(compo_scenes) < compo_size:
             # Scene contains held-out combinations -> compositional test
             compo_scenes.append(scene_objects)
             compo_targets.append(target_idx)
-        else:
+        elif not has_heldout:
             # Scene doesn't contain held-out combinations
-            if len(train_scenes) < n_scenes * 0.6:  # 60% for training
+            if len(train_scenes) < train_size:
                 train_scenes.append(scene_objects)
                 train_targets.append(target_idx)
-            elif len(iid_scenes) < n_scenes * 0.2:  # 20% for iid test
+            elif len(iid_scenes) < iid_size:
                 iid_scenes.append(scene_objects)
                 iid_targets.append(target_idx)
 

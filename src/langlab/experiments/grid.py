@@ -197,7 +197,17 @@ class Grid:
             reward = 1.0
             self.success = True
             self.done = True
-        elif self.step_count >= self.max_steps:
+        else:
+            # Add distance-based reward to guide learning
+            distance = abs(self.agent_pos[0] - self.target_pos[0]) + abs(
+                self.agent_pos[1] - self.target_pos[1]
+            )
+            max_distance = self.size * 2  # Maximum possible distance
+            reward = 0.1 * (
+                1.0 - distance / max_distance
+            )  # Small positive reward for getting closer
+
+        if self.step_count >= self.max_steps:
             self.done = True
 
         # Prepare info

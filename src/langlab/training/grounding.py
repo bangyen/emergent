@@ -205,7 +205,8 @@ class GroundedListener(nn.Module):
         with torch.no_grad():
             action_logits = self.forward(message_tokens, grid_obs)
             action_probs = F.softmax(action_logits, dim=-1)
-            action_idx = torch.argmax(action_probs, dim=-1).item()
+            # Use sampling instead of argmax for exploration
+            action_idx = torch.multinomial(action_probs, 1).item()
             return Action(action_idx)
 
 
@@ -359,7 +360,7 @@ class GroundedEnvironment:
         actions: torch.Tensor,
         rewards: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute supervised loss for the Listener.
+        """Compute REINFORCE loss for the Listener.
 
         Args:
             message_tokens: Message tokens tensor.
@@ -373,8 +374,14 @@ class GroundedEnvironment:
         # Get action logits
         action_logits = self.listener(message_tokens, grid_obs)
 
-        # Compute cross-entropy loss
-        loss = F.cross_entropy(action_logits, actions)
+        # Compute log probabilities
+        log_probs = F.log_softmax(action_logits, dim=-1)
+
+        # Get log probabilities of taken actions
+        action_log_probs = log_probs.gather(1, actions.unsqueeze(1)).squeeze(1)
+
+        # Compute REINFORCE loss (negative log probability weighted by rewards)
+        loss = -(action_log_probs * rewards).mean()
 
         return loss
 

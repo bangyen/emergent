@@ -49,7 +49,7 @@ class TestGrid:
         # Move to target
         state, reward, done, info = grid.step(Action.RIGHT)
         assert not done
-        assert reward == 0.0
+        assert reward > 0.0  # Should get distance-based reward
 
         state, reward, done, info = grid.step(Action.DOWN)
         assert done
@@ -67,7 +67,7 @@ class TestGrid:
 
         assert done
         assert not grid.success
-        assert reward == 0.0
+        assert reward > 0.0  # Should get distance-based reward
 
     def test_reset(self) -> None:
         """Test that reset returns grid to initial state."""
