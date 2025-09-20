@@ -73,3 +73,6 @@ Desktop.ini
 
 # Linux
 *~
+
+# Project-specific
+outputs/
