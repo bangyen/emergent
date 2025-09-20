@@ -10,6 +10,9 @@ __author__ = "Language Emergence Lab"
 from .world import make_object, sample_scene, encode_object
 from .data import ReferentialGameDataset
 from .utils import set_seed, get_device, get_logger
+from .config import CommunicationConfig
+from .agents import Speaker, Listener
+from .channel import DiscreteChannel
 
 __all__ = [
     "make_object",
@@ -19,4 +22,8 @@ __all__ = [
     "set_seed",
     "get_device",
     "get_logger",
+    "CommunicationConfig",
+    "Speaker",
+    "Listener",
+    "DiscreteChannel",
 ]
