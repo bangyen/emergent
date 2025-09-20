@@ -48,9 +48,20 @@ class Speaker(nn.Module):
             ]
         )
 
+        # Gesture output layers for multimodal communication
+        if config.multimodal:
+            self.gesture_layers = nn.ModuleList(
+                [
+                    nn.Linear(config.hidden_size, config.gesture_size)
+                    for _ in range(config.message_length)
+                ]
+            )
+
     def forward(
         self, object_encoding: torch.Tensor, temperature: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
         """Generate message logits and sampled tokens for the given object.
 
         Args:
@@ -61,6 +72,8 @@ class Speaker(nn.Module):
             A tuple containing:
             - logits: Tensor of shape (batch_size, message_length, vocabulary_size) with raw logits
             - token_ids: Tensor of shape (batch_size, message_length) with sampled token indices
+            - gesture_logits: Optional tensor of shape (batch_size, message_length, gesture_size) with gesture logits
+            - gesture_ids: Optional tensor of shape (batch_size, message_length) with sampled gesture indices
         """
         # Encode object
         hidden = self.encoder(object_encoding)  # (batch_size, hidden_size)
@@ -68,6 +81,8 @@ class Speaker(nn.Module):
         # Generate logits for each message position
         logits = []
         token_ids = []
+        gesture_logits = []
+        gesture_ids = []
 
         for i in range(self.config.message_length):
             pos_logits = self.output_layers[i](hidden)  # (batch_size, vocabulary_size)
@@ -94,13 +109,52 @@ class Speaker(nn.Module):
 
             token_ids.append(pos_tokens)
 
+            # Generate gestures if multimodal
+            if self.config.multimodal:
+                pos_gesture_logits = self.gesture_layers[i](
+                    hidden
+                )  # (batch_size, gesture_size)
+                gesture_logits.append(pos_gesture_logits)
+
+                # Sample gestures using the same logic
+                if self.training:
+                    gumbel_noise_gesture = -torch.log(
+                        -torch.log(torch.rand_like(pos_gesture_logits) + 1e-20) + 1e-20
+                    )
+                    pos_gesture_logits_with_noise = (
+                        pos_gesture_logits + gumbel_noise_gesture
+                    )
+                else:
+                    pos_gesture_logits_with_noise = pos_gesture_logits
+
+                pos_gesture_logits_scaled = pos_gesture_logits_with_noise / temperature
+                pos_gesture_probs = F.softmax(pos_gesture_logits_scaled, dim=-1)
+                pos_gestures = torch.argmax(pos_gesture_probs, dim=-1)
+
+                gesture_ids.append(pos_gestures)
+
         # Stack outputs
         logits_tensor = torch.stack(
             logits, dim=1
         )  # (batch_size, message_length, vocabulary_size)
         token_ids_tensor = torch.stack(token_ids, dim=1)  # (batch_size, message_length)
 
-        return logits_tensor, token_ids_tensor
+        gesture_logits_tensor = None
+        gesture_ids_tensor = None
+        if self.config.multimodal:
+            gesture_logits_tensor = torch.stack(
+                gesture_logits, dim=1
+            )  # (batch_size, message_length, gesture_size)
+            gesture_ids_tensor = torch.stack(
+                gesture_ids, dim=1
+            )  # (batch_size, message_length)
+
+        return (
+            logits_tensor,
+            token_ids_tensor,
+            gesture_logits_tensor,
+            gesture_ids_tensor,
+        )
 
 
 class Listener(nn.Module):
@@ -122,11 +176,14 @@ class Listener(nn.Module):
         self.message_dim = config.vocabulary_size  # One-hot encoded message
         self.object_dim = TOTAL_ATTRIBUTES  # Encoded object
 
+        # Calculate input dimension for message encoder
+        message_input_dim = config.message_length * config.vocabulary_size
+        if config.multimodal:
+            message_input_dim += config.message_length * config.gesture_size
+
         # Message encoder
         self.message_encoder = nn.Sequential(
-            nn.Linear(
-                config.message_length * config.vocabulary_size, config.hidden_size
-            ),
+            nn.Linear(message_input_dim, config.hidden_size),
             nn.ReLU(),
             nn.Linear(config.hidden_size, config.hidden_size),
             nn.ReLU(),
@@ -148,13 +205,17 @@ class Listener(nn.Module):
         )
 
     def forward(
-        self, message_tokens: torch.Tensor, candidate_objects: torch.Tensor
+        self,
+        message_tokens: torch.Tensor,
+        candidate_objects: torch.Tensor,
+        gesture_tokens: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Compute scores for each candidate object given the message.
 
         Args:
             message_tokens: Tensor of shape (batch_size, message_length) with token indices.
             candidate_objects: Tensor of shape (batch_size, num_candidates, object_dim) with encoded objects.
+            gesture_tokens: Optional tensor of shape (batch_size, message_length) with gesture indices.
 
         Returns:
             Tensor of shape (batch_size, num_candidates) with probabilities over candidates.
@@ -171,9 +232,23 @@ class Listener(nn.Module):
             batch_size, -1
         ).float()  # Flatten message positions and convert to float
 
-        # Encode message
+        # One-hot encode gesture tokens if multimodal
+        if self.config.multimodal and gesture_tokens is not None:
+            gesture_onehot = F.one_hot(
+                gesture_tokens, num_classes=self.config.gesture_size
+            )
+            gesture_onehot = gesture_onehot.view(
+                batch_size, -1
+            ).float()  # Flatten gesture positions and convert to float
+
+            # Concatenate message and gesture encodings
+            multimodal_input = torch.cat([message_onehot, gesture_onehot], dim=-1)
+        else:
+            multimodal_input = message_onehot
+
+        # Encode message (and gestures if multimodal)
         message_features = self.message_encoder(
-            message_onehot
+            multimodal_input
         )  # (batch_size, hidden_size)
 
         # Encode all candidate objects
@@ -209,6 +284,123 @@ class Listener(nn.Module):
         probabilities = F.softmax(scores_tensor, dim=-1)
 
         return probabilities
+
+
+class PragmaticListener(nn.Module):
+    """Pragmatic Listener agent that uses RSA-style reasoning for distractor scenes.
+
+    The PragmaticListener implements Rational Speech Act (RSA) reasoning to handle
+    ambiguous messages in distractor-heavy scenes. It considers speaker intent by
+    reasoning about what the speaker would likely say given different candidate objects.
+
+    Args:
+        config: Communication configuration containing vocabulary and pragmatic parameters.
+        literal_listener: Pre-trained literal listener for RSA computation.
+        speaker: Pre-trained speaker for RSA computation.
+    """
+
+    def __init__(
+        self, config: CommunicationConfig, literal_listener: Listener, speaker: Speaker
+    ):
+        super().__init__()
+        self.config = config
+        self.literal_listener = literal_listener
+        self.speaker = speaker
+        self.temperature = 1.0  # Temperature for RSA computation
+
+    def forward(
+        self,
+        message_tokens: torch.Tensor,
+        candidate_objects: torch.Tensor,
+        gesture_tokens: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Compute pragmatic scores for each candidate object given the message.
+
+        This implements RSA-style pragmatic reasoning:
+        1. Compute literal listener probabilities P_L(obj | message)
+        2. Compute speaker probabilities P_S(message | obj) for each candidate
+        3. Compute pragmatic listener probabilities using RSA formula
+
+        Args:
+            message_tokens: Tensor of shape (batch_size, message_length) with token indices.
+            candidate_objects: Tensor of shape (batch_size, num_candidates, object_dim) with encoded objects.
+            gesture_tokens: Optional tensor of shape (batch_size, message_length) with gesture indices.
+
+        Returns:
+            Tensor of shape (batch_size, num_candidates) with pragmatic probabilities over candidates.
+        """
+        num_candidates = candidate_objects.size(1)
+
+        # Step 1: Compute literal listener probabilities
+        literal_probs = self.literal_listener(
+            message_tokens, candidate_objects, gesture_tokens
+        )
+
+        # Step 2: Compute speaker probabilities for each candidate
+        speaker_probs = []
+
+        for i in range(num_candidates):
+            # Get the i-th candidate object for each batch
+            candidate_obj = candidate_objects[:, i, :]  # (batch_size, object_dim)
+
+            # Generate speaker logits for this candidate
+            if self.config.multimodal:
+                logits, _, gesture_logits, _ = self.speaker(
+                    candidate_obj, self.temperature
+                )
+            else:
+                logits, _, _, _ = self.speaker(candidate_obj, self.temperature)
+                gesture_logits = None
+
+            # Compute probability of the observed message given this candidate
+            message_probs = F.softmax(
+                logits, dim=-1
+            )  # (batch_size, message_length, vocab_size)
+
+            # Get probability of observed tokens
+            token_probs = torch.gather(
+                message_probs, dim=-1, index=message_tokens.unsqueeze(-1)
+            ).squeeze(
+                -1
+            )  # (batch_size, message_length)
+
+            # Product over message positions
+            candidate_message_prob = torch.prod(token_probs, dim=-1)  # (batch_size,)
+
+            # Handle gestures if multimodal
+            if (
+                self.config.multimodal
+                and gesture_tokens is not None
+                and gesture_logits is not None
+            ):
+                gesture_probs = F.softmax(
+                    gesture_logits, dim=-1
+                )  # (batch_size, message_length, gesture_size)
+                gesture_token_probs = torch.gather(
+                    gesture_probs, dim=-1, index=gesture_tokens.unsqueeze(-1)
+                ).squeeze(
+                    -1
+                )  # (batch_size, message_length)
+
+                candidate_gesture_prob = torch.prod(
+                    gesture_token_probs, dim=-1
+                )  # (batch_size,)
+                candidate_message_prob = candidate_message_prob * candidate_gesture_prob
+
+            speaker_probs.append(candidate_message_prob)
+
+        speaker_probs_tensor = torch.stack(
+            speaker_probs, dim=1
+        )  # (batch_size, num_candidates)
+
+        # Step 3: RSA pragmatic listener computation
+        # P_pragmatic(obj | message) ∝ P_literal(obj | message) * P_speaker(message | obj)
+        pragmatic_scores = literal_probs * speaker_probs_tensor
+
+        # Normalize to get probabilities
+        pragmatic_probs = pragmatic_scores / pragmatic_scores.sum(dim=-1, keepdim=True)
+
+        return pragmatic_probs
 
 
 class SpeakerSeq(nn.Module):

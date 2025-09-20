@@ -8,7 +8,14 @@ from typing import Tuple, Iterator, Optional, List, Dict
 import torch
 from torch.utils.data import Dataset
 
-from .world import sample_scene, encode_object, COLORS, SHAPES, SIZES
+from .world import (
+    sample_scene,
+    sample_distractor_scene,
+    encode_object,
+    COLORS,
+    SHAPES,
+    SIZES,
+)
 from .utils import set_seed
 
 
@@ -77,6 +84,89 @@ class ReferentialGameDataset(Dataset):
 
         scene_tensor = self.scenes[idx]
         target_idx = self.target_indices[idx]
+
+        # For referential games, candidates are all objects in the scene
+        candidate_encodings = scene_tensor
+
+        return scene_tensor, target_idx, candidate_encodings
+
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int, torch.Tensor]]:
+        """Iterate over all scenes in the dataset."""
+        for i in range(len(self)):
+            yield self[i]
+
+
+class DistractorDataset(Dataset):
+    """Dataset for distractor-heavy referential game experiments.
+
+    This dataset generates scenes with distractor objects that share attributes
+    with the target, creating pragmatic challenges for literal interpretation.
+    """
+
+    def __init__(
+        self, n_scenes: int, k: int, num_distractors: int, seed: Optional[int] = None
+    ):
+        """Initialize the distractor dataset.
+
+        Args:
+            n_scenes: Number of scenes to generate in the dataset.
+            k: Number of objects per scene.
+            num_distractors: Number of distractor objects that share attributes with target.
+            seed: Random seed for reproducible dataset generation.
+        """
+        self.n_scenes = n_scenes
+        self.k = k
+        self.num_distractors = num_distractors
+        self.seed = seed
+
+        # Generate all scenes upfront for efficiency
+        self._generate_scenes()
+
+    def _generate_scenes(self) -> None:
+        """Generate all distractor scenes for the dataset."""
+        if self.seed is not None:
+            set_seed(self.seed)
+
+        self.scenes = []
+        self.target_indices = []
+
+        for i in range(self.n_scenes):
+            # Use scene index as additional seed component for variety
+            scene_seed = self.seed + i if self.seed is not None else None
+            scene_objects, target_idx = sample_distractor_scene(
+                self.k, self.num_distractors, scene_seed
+            )
+
+            self.scenes.append(scene_objects)
+            self.target_indices.append(target_idx)
+
+    def __len__(self) -> int:
+        """Return the number of scenes in the dataset."""
+        return len(self.scenes)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
+        """Get a single sample from the dataset.
+
+        Args:
+            idx: Index of the sample to retrieve.
+
+        Returns:
+            A tuple containing:
+            - scene_tensor: Tensor of shape (k, object_dim) with encoded objects
+            - target_idx: Index of the target object in the scene
+            - candidate_encodings: Same as scene_tensor (for compatibility)
+        """
+        if idx >= len(self):
+            raise IndexError(
+                f"Index {idx} out of range for dataset of size {len(self)}"
+            )
+
+        scene_objects = self.scenes[idx]
+        target_idx = self.target_indices[idx]
+
+        # Encode all objects in the scene
+        encoded_objects = [encode_object(obj) for obj in scene_objects]
+        scene_tensor = torch.stack(encoded_objects)
 
         # For referential games, candidates are all objects in the scene
         candidate_encodings = scene_tensor
