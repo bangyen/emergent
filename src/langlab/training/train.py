@@ -114,7 +114,7 @@ def focal_loss(
     """
     ce_loss = F.cross_entropy(inputs, targets, reduction="none")
     pt = torch.exp(-ce_loss)
-    focal_loss = alpha * (1 - pt) ** gamma * ce_loss
+    focal_loss: torch.Tensor = alpha * (1 - pt) ** gamma * ce_loss
     return focal_loss.mean()
 
 
@@ -286,12 +286,16 @@ def train_step(
     device: Optional[torch.device] = None,
     temperature: float = 1.0,
     use_sequence_models: bool = False,
+    speaker_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    listener_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+    step: int = 1,
 ) -> Dict[str, float]:
     """Perform one training step for both Speaker and Listener.
 
     This function executes a single training step, computing losses for both
     agents and updating their parameters using the respective optimizers.
-    Supports both regular and sequence-aware models.
+    Supports both regular and sequence-aware models. Also handles learning
+    rate scheduler updates after the optimizer steps to maintain proper order.
 
     Args:
         speaker: The Speaker agent (Speaker or SpeakerSeq).
@@ -300,10 +304,16 @@ def train_step(
         speaker_optimizer: Optimizer for the Speaker.
         listener_optimizer: Optimizer for the Listener.
         speaker_baseline: Moving average baseline for Speaker rewards.
+        config: Communication configuration.
         lambda_speaker: Weight for combining Speaker and Listener losses.
         entropy_weight: Weight for entropy bonus regularization.
         length_weight: Weight for length cost regularization.
         device: Device to run computations on.
+        temperature: Temperature for Gumbel sampling.
+        use_sequence_models: Whether to use sequence models.
+        speaker_scheduler: Optional learning rate scheduler for speaker optimizer.
+        listener_scheduler: Optional learning rate scheduler for listener optimizer.
+        step: Current training step number for scheduler stepping.
 
     Returns:
         Dictionary containing loss values and accuracy metrics.
@@ -380,6 +390,12 @@ def train_step(
 
     speaker_optimizer.step()
     listener_optimizer.step()
+
+    # Update learning rate schedulers after optimizer steps
+    if speaker_scheduler is not None and step > 1:
+        speaker_scheduler.step()
+    if listener_scheduler is not None and step > 1:
+        listener_scheduler.step()
 
     # Compute accuracy
     accuracy = rewards.mean().item()
@@ -560,8 +576,11 @@ def train(
         # Compute advanced temperature annealing with cosine schedule
         progress = step / n_steps
         # Cosine annealing for smoother temperature decay
-        temperature = temperature_end + (temperature_start - temperature_end) * 0.5 * (
-            1 + torch.cos(torch.tensor(progress * 3.14159))
+        temperature = (
+            temperature_end
+            + (temperature_start - temperature_end)
+            * 0.5
+            * (1 + torch.cos(torch.tensor(progress * 3.14159))).item()
         )
 
         # Training step
@@ -579,13 +598,12 @@ def train(
             device,
             temperature,
             use_sequence_models,
+            speaker_scheduler,
+            listener_scheduler,
+            step + 1,  # Pass the step number for scheduler stepping
         )
 
         step += 1
-
-        # Update learning rate schedulers
-        speaker_scheduler.step()
-        listener_scheduler.step()
 
         # Logging
         if step % log_every == 0:

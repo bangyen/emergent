@@ -111,7 +111,12 @@ def evaluate(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            _, message_tokens, _, _ = speaker(target_objects)
+            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
+                # SpeakerSeq returns (logits, tokens)
+                _, message_tokens = speaker(target_objects)
+            else:
+                # Regular Speaker returns (logits, tokens, gesture_logits, gesture_tokens)
+                _, message_tokens, _, _ = speaker(target_objects)
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)

@@ -169,7 +169,9 @@ def test_run_ablation_suite_experiment_id_format() -> None:
         "langlab.analysis.eval.evaluate_all_splits"
     ) as mock_eval, patch(
         "langlab.experiments.ablate.compute_zipf_slope_from_checkpoint"
-    ) as mock_zipf:
+    ) as mock_zipf, patch(
+        "torch.load"
+    ) as mock_load:
 
         mock_eval.return_value = {
             "train": {"acc": 0.8},
@@ -178,13 +180,78 @@ def test_run_ablation_suite_experiment_id_format() -> None:
         }
         mock_zipf.return_value = -0.8
 
+        # Mock checkpoint loading to avoid architecture mismatch
+        import torch
+
+        mock_checkpoint = {
+            "config": type(
+                "Config",
+                (),
+                {
+                    "use_sequence_models": True,
+                    "vocabulary_size": 12,
+                    "message_length": 2,
+                    "hidden_size": 128,
+                    "multimodal": False,
+                    "distractors": 0,
+                    "pragmatic": False,
+                    "seed": 42,
+                },
+            )(),
+            "speaker_state_dict": {
+                "object_encoder.0.weight": torch.randn(
+                    128, 8
+                ),  # hidden_size, TOTAL_ATTRIBUTES
+                "object_encoder.0.bias": torch.randn(128),
+                "object_encoder.2.weight": torch.randn(
+                    128, 128
+                ),  # hidden_size, hidden_size
+                "object_encoder.2.bias": torch.randn(128),
+                "gru.weight_ih_l0": torch.randn(
+                    384, 140
+                ),  # 3*hidden_size, hidden_size+vocab_size
+                "gru.weight_hh_l0": torch.randn(384, 128),  # 3*hidden_size, hidden_size
+                "gru.bias_ih_l0": torch.randn(384),
+                "gru.bias_hh_l0": torch.randn(384),
+                "output_proj.weight": torch.randn(12, 128),  # vocab_size, hidden_size
+                "output_proj.bias": torch.randn(12),
+                "token_embedding.weight": torch.randn(12, 12),  # vocab_size, vocab_size
+            },
+            "listener_state_dict": {
+                "token_embedding.weight": torch.randn(
+                    12, 128
+                ),  # vocab_size, hidden_size
+                "message_encoder.weight_ih_l0": torch.randn(
+                    384, 128
+                ),  # 3*hidden_size, hidden_size
+                "message_encoder.weight_hh_l0": torch.randn(
+                    384, 128
+                ),  # 3*hidden_size, hidden_size
+                "message_encoder.bias_ih_l0": torch.randn(384),
+                "message_encoder.bias_hh_l0": torch.randn(384),
+                "object_encoder.0.weight": torch.randn(
+                    128, 8
+                ),  # hidden_size, TOTAL_ATTRIBUTES
+                "object_encoder.0.bias": torch.randn(128),
+                "object_encoder.2.weight": torch.randn(
+                    128, 128
+                ),  # hidden_size, hidden_size
+                "object_encoder.2.bias": torch.randn(128),
+                "bilinear_scorer.weight": torch.randn(
+                    1, 128, 128
+                ),  # 1, hidden_size, hidden_size
+                "bilinear_scorer.bias": torch.randn(1),
+            },
+        }
+        mock_load.return_value = mock_checkpoint
+
         results = run_ablation_suite(
             runs=1,
             vocab_sizes=[12],
             channel_noise_levels=[0.05],
             length_costs=[0.01],
             n_steps=10,
-            use_sequence_models=False,
+            use_sequence_models=True,
         )
 
         assert len(results) == 1
