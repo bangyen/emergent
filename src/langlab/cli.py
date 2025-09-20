@@ -9,6 +9,7 @@ import click
 from .world import sample_scene, COLORS, SHAPES, SIZES
 from .data import ReferentialGameDataset
 from .utils import get_logger, get_device
+from .train import train
 
 
 logger = get_logger(__name__)
@@ -75,6 +76,57 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
         click.echo(f"  Target indices (first 10): {target_indices}")
 
     except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--steps", default=5000, help="Number of training steps")
+@click.option("--k", default=5, help="Number of objects per scene")
+@click.option("--v", default=10, help="Vocabulary size")
+@click.option("--message-length", default=1, help="Message length")
+@click.option("--seed", default=7, help="Random seed")
+@click.option("--log-every", default=100, help="Logging frequency")
+@click.option("--eval-every", default=500, help="Checkpoint frequency")
+@click.option("--lambda-speaker", default=1.0, help="Speaker loss weight")
+@click.option("--batch-size", default=32, help="Batch size")
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--hidden-size", default=64, help="Hidden dimension size")
+def train_cmd(
+    steps: int,
+    k: int,
+    v: int,
+    message_length: int,
+    seed: int,
+    log_every: int,
+    eval_every: int,
+    lambda_speaker: float,
+    batch_size: int,
+    learning_rate: float,
+    hidden_size: int,
+) -> None:
+    """Train Speaker and Listener agents for emergent language."""
+    logger.info(
+        f"Starting training: steps={steps}, k={k}, v={v}, message_length={message_length}, seed={seed}"
+    )
+
+    try:
+        train(
+            n_steps=steps,
+            k=k,
+            v=v,
+            message_length=message_length,
+            seed=seed,
+            log_every=log_every,
+            eval_every=eval_every,
+            lambda_speaker=lambda_speaker,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+        )
+        click.echo("Training completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Training failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 
