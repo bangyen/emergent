@@ -611,22 +611,13 @@ def train(
         eps=1e-8,
     )
 
-    # Enhanced learning rate schedulers with warmup
-    if use_warmup:
-        warmup_steps = min(1000, n_steps // 10)
-        speaker_scheduler = torch.optim.lr_scheduler.LinearLR(
-            speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
-        )
-        listener_scheduler = torch.optim.lr_scheduler.LinearLR(
-            listener_optimizer, start_factor=0.1, total_iters=warmup_steps
-        )
-    else:
-        speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )
-        listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )
+    # Enhanced learning rate schedulers with cosine annealing
+    speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    )
+    listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
+    )
 
     # Create baseline and EMA for better training stability
     speaker_baseline = MovingAverage(window_size=100)
