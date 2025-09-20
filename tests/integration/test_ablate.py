@@ -184,6 +184,7 @@ def test_run_ablation_suite_experiment_id_format() -> None:
             channel_noise_levels=[0.05],
             length_costs=[0.01],
             n_steps=10,
+            use_sequence_models=False,
         )
 
         assert len(results) == 1

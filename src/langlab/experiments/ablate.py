@@ -133,14 +133,17 @@ def run_single_experiment(
     params: Dict[str, Any],
     experiment_id: str,
     base_seed: int = 42,
-    n_steps: int = 2000,
+    n_steps: int = 5000,
     k: int = 5,
-    message_length: int = 1,
-    batch_size: int = 32,
-    learning_rate: float = 1e-3,
-    hidden_size: int = 64,
-    entropy_weight: float = 0.01,
+    message_length: int = 2,
+    batch_size: int = 64,
+    learning_rate: float = 5e-4,
+    hidden_size: int = 128,
+    entropy_weight: float = 0.05,
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
+    temperature_start: float = 2.0,
+    temperature_end: float = 0.5,
+    use_sequence_models: bool = True,
 ) -> Dict[str, Any]:
     """Run a single ablation experiment with given parameters.
 
@@ -190,10 +193,12 @@ def run_single_experiment(
         batch_size=batch_size,
         learning_rate=learning_rate,
         hidden_size=hidden_size,
-        use_sequence_models=False,
+        use_sequence_models=use_sequence_models,
         entropy_weight=entropy_weight,
         length_weight=params["length_cost"],
         heldout_pairs=heldout_pairs,
+        temperature_start=temperature_start,
+        temperature_end=temperature_end,
     )
 
     # Evaluate on all splits
@@ -299,18 +304,19 @@ def compute_zipf_slope_from_checkpoint(
 
 def run_ablation_suite(
     runs: int = 6,
-    vocab_sizes: List[int] = [6, 12, 24],
+    vocab_sizes: List[int] = [12, 24, 48],
     channel_noise_levels: List[float] = [0.0, 0.05, 0.1],
     length_costs: List[float] = [0.0, 0.01, 0.05],
     base_seed: int = 42,
-    n_steps: int = 2000,
+    n_steps: int = 5000,
     k: int = 5,
-    message_length: int = 1,
-    batch_size: int = 32,
-    learning_rate: float = 1e-3,
-    hidden_size: int = 64,
-    entropy_weight: float = 0.01,
+    message_length: int = 2,
+    batch_size: int = 64,
+    learning_rate: float = 5e-4,
+    hidden_size: int = 128,
+    entropy_weight: float = 0.05,
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
+    use_sequence_models: bool = True,
 ) -> List[Dict[str, Any]]:
     """Run complete ablation study suite.
 
@@ -364,6 +370,7 @@ def run_ablation_suite(
                 hidden_size=hidden_size,
                 entropy_weight=entropy_weight,
                 heldout_pairs=heldout_pairs,
+                use_sequence_models=use_sequence_models,
             )
             all_results.append(result)
 
