@@ -76,7 +76,7 @@ def sample_dataset() -> ReferentialGameDataset:
 
 
 @pytest.fixture
-def mock_checkpoint() -> Dict[str, torch.Tensor]:
+def mock_checkpoint(sample_config) -> Dict[str, Any]:
     """Provide a mock checkpoint for testing."""
     return {
         "step": 1000,
@@ -88,11 +88,7 @@ def mock_checkpoint() -> Dict[str, torch.Tensor]:
             "decoder.0.weight": torch.randn(32, 10),
             "decoder.0.bias": torch.randn(10),
         },
-        "config": {
-            "vocabulary_size": 10,
-            "message_length": 1,
-            "hidden_size": 32,
-        },
+        "config": sample_config,
     }
 
 
