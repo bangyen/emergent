@@ -179,6 +179,43 @@ def get_curriculum_k(step: int, n_steps: int, min_k: int = 2, max_k: int = 5) ->
     return int(curriculum_k)
 
 
+def get_adaptive_curriculum_k(
+    step: int,
+    n_steps: int,
+    min_k: int = 2,
+    max_k: int = 5,
+    accuracy_history: Optional[List[float]] = None,
+    patience: int = 500,
+) -> int:
+    """Get adaptive curriculum difficulty based on performance.
+
+    Args:
+        step: Current training step.
+        n_steps: Total number of training steps.
+        min_k: Minimum number of objects per scene.
+        max_k: Maximum number of objects per scene.
+        accuracy_history: List of recent accuracy values.
+        patience: Steps to wait before increasing difficulty.
+
+    Returns:
+        Number of objects to use in the current step.
+    """
+    if accuracy_history is None or len(accuracy_history) < patience:
+        # Fall back to linear curriculum if no history
+        return get_curriculum_k(step, n_steps, min_k, max_k)
+
+    # Check if accuracy has plateaued
+    recent_accuracy = accuracy_history[-patience:]
+    if len(recent_accuracy) >= patience:
+        accuracy_improvement = max(recent_accuracy) - min(recent_accuracy)
+        if accuracy_improvement < 0.05:  # Less than 5% improvement
+            # Increase difficulty
+            current_k = get_curriculum_k(step, n_steps, min_k, max_k)
+            return min(current_k + 1, max_k)
+
+    return get_curriculum_k(step, n_steps, min_k, max_k)
+
+
 def focal_loss(
     inputs: torch.Tensor, targets: torch.Tensor, alpha: float = 1.0, gamma: float = 2.0
 ) -> torch.Tensor:
@@ -197,6 +234,53 @@ def focal_loss(
     pt = torch.exp(-ce_loss)
     focal_loss: torch.Tensor = alpha * (1 - pt) ** gamma * ce_loss
     return focal_loss.mean()
+
+
+def label_smoothing_loss(
+    inputs: torch.Tensor, targets: torch.Tensor, smoothing: float = 0.1
+) -> torch.Tensor:
+    """Compute label smoothing loss for better generalization.
+
+    Args:
+        inputs: Model predictions (logits).
+        targets: Ground truth labels.
+        smoothing: Label smoothing factor.
+
+    Returns:
+        Label smoothing loss value.
+    """
+    num_classes = inputs.size(-1)
+    log_preds = F.log_softmax(inputs, dim=-1)
+    true_dist = torch.zeros_like(log_preds)
+    true_dist.fill_(smoothing / (num_classes - 1))
+    true_dist.scatter_(1, targets.unsqueeze(1), 1.0 - smoothing)
+    return torch.mean(torch.sum(-true_dist * log_preds, dim=-1))
+
+
+def mixup_loss(
+    inputs: torch.Tensor, targets: torch.Tensor, alpha: float = 0.2
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    """Apply mixup augmentation and compute loss.
+
+    Args:
+        inputs: Input batch.
+        targets: Target batch.
+        alpha: Mixup parameter.
+
+    Returns:
+        Tuple of (mixed inputs, mixed targets, lambda).
+    """
+    if alpha > 0:
+        lam = torch.distributions.Beta(alpha, alpha).sample()
+    else:
+        lam = 1
+
+    batch_size = inputs.size(0)
+    index = torch.randperm(batch_size)
+
+    mixed_inputs = lam * inputs + (1 - lam) * inputs[index, :]
+    y_a, y_b = targets, targets[index]
+    return mixed_inputs, y_a, y_b, lam
 
 
 def compute_entropy_bonus(logits: torch.Tensor) -> torch.Tensor:
