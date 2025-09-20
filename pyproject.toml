@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Language Emergence Lab", email = "langlab@example.com"},
+    {name = "Bangyen Pham", email = "bangyenp@gmail.com"},
 ]
 keywords = ["language", "emergence", "referential-game", "proto-language", "ai"]
 classifiers = [
@@ -54,9 +54,9 @@ dev = [
 langlab = "langlab.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/package-name"
-Repository = "https://github.com/yourusername/package-name"
-Issues = "https://github.com/yourusername/package-name/issues"
+Homepage = "https://github.com/bangyen/emergent"
+Repository = "https://github.com/bangyen/emergent"
+Issues = "https://github.com/bangyen/emergent/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
