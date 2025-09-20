@@ -87,26 +87,26 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 
 
 @main.command()
-@click.option("--steps", default=5000, help="Number of training steps")
+@click.option("--steps", default=10000, help="Number of training steps")
 @click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=10, help="Vocabulary size")
+@click.option("--v", default=24, help="Vocabulary size")
 @click.option(
-    "--l", "--message-length", "message_length", default=1, help="Message length"
+    "--l", "--message-length", "message_length", default=2, help="Message length"
 )
 @click.option("--seed", default=7, help="Random seed")
 @click.option("--log-every", default=100, help="Logging frequency")
 @click.option("--eval-every", default=500, help="Checkpoint frequency")
 @click.option("--lambda-speaker", default=1.0, help="Speaker loss weight")
-@click.option("--batch-size", default=32, help="Batch size")
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
-@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--batch-size", default=64, help="Batch size")
+@click.option("--learning-rate", default=5e-4, help="Learning rate")
+@click.option("--hidden-size", default=128, help="Hidden dimension size")
 @click.option(
     "--use-sequence-models",
     is_flag=True,
     help="Use sequence-aware models (SpeakerSeq/ListenerSeq)",
 )
 @click.option(
-    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
+    "--entropy-weight", default=0.05, help="Weight for entropy bonus regularization"
 )
 @click.option(
     "--length-weight", default=0.0, help="Weight for length cost regularization"
@@ -126,6 +126,16 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     default=0,
     help="Number of distractor objects for pragmatic inference",
 )
+@click.option(
+    "--temperature-start",
+    default=2.0,
+    help="Starting temperature for Gumbel-Softmax sampling",
+)
+@click.option(
+    "--temperature-end",
+    default=0.5,
+    help="Ending temperature for Gumbel-Softmax sampling",
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -144,6 +154,8 @@ def train_cmd(
     heldout: Optional[str],
     multimodal: int,
     distractors: int,
+    temperature_start: float,
+    temperature_end: float,
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -188,6 +200,8 @@ def train_cmd(
             heldout_pairs=heldout_pairs,
             multimodal=bool(multimodal),
             distractors=distractors,
+            temperature_start=temperature_start,
+            temperature_end=temperature_end,
         )
         click.echo("Training completed successfully!")
 

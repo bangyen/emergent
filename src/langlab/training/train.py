@@ -8,7 +8,6 @@ supervised learning for the Listener and REINFORCE for the Speaker.
 import os
 import csv
 from typing import Dict, Tuple, Optional, Union, List
-from collections import deque
 
 import torch
 import torch.nn.functional as F
@@ -23,34 +22,39 @@ logger = get_logger(__name__)
 
 
 class MovingAverage:
-    """Moving average baseline for REINFORCE training.
+    """Exponential moving average baseline for REINFORCE training.
 
-    This class maintains a moving average of rewards to use as a baseline
-    in REINFORCE training, helping reduce variance in policy gradient updates.
+    This class maintains an exponential moving average of rewards to use as a baseline
+    in REINFORCE training, providing better stability than simple moving averages.
     """
 
-    def __init__(self, window_size: int = 100):
-        """Initialize the moving average baseline.
+    def __init__(self, window_size: int = 100, alpha: float = 0.1):
+        """Initialize the exponential moving average baseline.
 
         Args:
-            window_size: Number of recent rewards to include in the average.
+            window_size: Number of recent rewards to include in the average (for compatibility).
+            alpha: Exponential decay factor (0 < alpha <= 1). Higher values give more weight to recent rewards.
         """
         self.window_size = window_size
-        self.rewards: deque = deque(maxlen=window_size)
+        self.alpha = alpha
         self._average = 0.0
+        self.count = 0
 
     def update(self, reward: float) -> None:
-        """Update the moving average with a new reward.
+        """Update the exponential moving average with a new reward.
 
         Args:
             reward: The reward value to add to the moving average.
         """
-        self.rewards.append(reward)
-        self._average = sum(self.rewards) / len(self.rewards)
+        self.count += 1
+        if self.count == 1:
+            self._average = reward
+        else:
+            self._average = (1 - self.alpha) * self._average + self.alpha * reward
 
     @property
     def average(self) -> float:
-        """Get the current moving average."""
+        """Get the current exponential moving average."""
         return self._average
 
 
@@ -220,6 +224,8 @@ def train_step(
     entropy_weight: float = 0.01,
     length_weight: float = 0.0,
     device: Optional[torch.device] = None,
+    temperature: float = 1.0,
+    use_sequence_models: bool = False,
 ) -> Dict[str, float]:
     """Perform one training step for both Speaker and Listener.
 
@@ -259,11 +265,19 @@ def train_step(
     # Speaker generates messages
     if config.multimodal:
         speaker_logits, message_tokens, gesture_logits, gesture_tokens = speaker(
-            target_objects
+            target_objects, temperature=temperature
         )
     else:
-        speaker_logits, message_tokens, _, _ = speaker(target_objects)
-        gesture_tokens = None
+        if use_sequence_models:
+            speaker_logits, message_tokens = speaker(
+                target_objects, temperature=temperature
+            )
+            gesture_tokens = None
+        else:
+            speaker_logits, message_tokens, _, _ = speaker(
+                target_objects, temperature=temperature
+            )
+            gesture_tokens = None
 
     # Listener makes predictions
     if config.multimodal and gesture_tokens is not None:
@@ -299,6 +313,11 @@ def train_step(
     speaker_optimizer.zero_grad()
     listener_optimizer.zero_grad()
     total_loss.backward()
+
+    # Gradient clipping for stability
+    torch.nn.utils.clip_grad_norm_(speaker.parameters(), max_norm=1.0)
+    torch.nn.utils.clip_grad_norm_(listener.parameters(), max_norm=1.0)
+
     speaker_optimizer.step()
     listener_optimizer.step()
 
@@ -339,6 +358,8 @@ def train(
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
     multimodal: bool = False,
     distractors: int = 0,
+    temperature_start: float = 2.0,
+    temperature_end: float = 0.5,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -465,6 +486,10 @@ def train(
             dataloader_iter = iter(dataloader)
             batch = next(dataloader_iter)
 
+        # Compute temperature annealing
+        progress = step / n_steps
+        temperature = temperature_start * (1 - progress) + temperature_end * progress
+
         # Training step
         metrics = train_step(
             speaker,
@@ -478,6 +503,8 @@ def train(
             entropy_weight,
             length_weight,
             device,
+            temperature,
+            use_sequence_models,
         )
 
         step += 1
