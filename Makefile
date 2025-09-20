@@ -1,4 +1,5 @@
-.PHONY: init fmt lint type test test-unit test-integration test-slow test-all test-coverage clean
+.PHONY: init fmt lint type test all clean
+
 init: ## install tooling
 	python -m pip install -U pip
 	pip install -e ".[dev]"

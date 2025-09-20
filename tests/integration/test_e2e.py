@@ -45,7 +45,7 @@ class TestEndToEndWorkflows:
                 "step": 100,
                 "speaker_state_dict": speaker.state_dict(),
                 "listener_state_dict": listener.state_dict(),
-                "config": sample_config.__dict__,
+                "config": sample_config,
             }
 
             # Save mock checkpoint
@@ -121,7 +121,19 @@ class TestEndToEndWorkflows:
 
         results_file = results_dir / "metrics.json"
         with open(results_file, "w") as f:
-            json.dump(sample_experiment_results, f)
+            json.dump({
+                "experiment_id": "exp_001",
+                "params": {
+                    "V": 6,
+                    "channel_noise": 0.0,
+                    "length_cost": 0.01,
+                },
+                "metrics": {
+                    "train": {"acc": 0.8},
+                    "compo": {"acc": 0.75},
+                },
+                "zipf_slope": -0.8,
+            }, f)
 
         # Mock report generation
         with patch("langlab.report.create_report") as mock_report:
@@ -157,7 +169,7 @@ class TestEndToEndWorkflows:
                 "total_tokens": 100,
             }
 
-            analysis_results = analyze_token_distribution(sample_message_tokens)
+            analysis_results = analyze_token_distribution(sample_message_tokens.tolist())
             assert analysis_results["zipf_slope"] == -0.8
             assert analysis_results["gini_coefficient"] == 0.3
 
@@ -247,21 +259,22 @@ class TestAgentWorkflow:
         listener = Listener(sample_config)
 
         # Speaker generates message
-        target_object = sample_scene_tensor[0:1]  # First object as target
+        target_object = sample_scene_tensor[0:1].float()  # Convert to float
         message_logits, message_tokens, _, _ = speaker(target_object)
 
         # Verify message generation
-        assert message_logits.shape[1] == sample_config.vocabulary_size
+        assert message_logits.shape[1] == sample_config.message_length
+        assert message_logits.shape[2] == sample_config.vocabulary_size
         assert message_tokens.shape[1] == sample_config.message_length
 
         # Listener processes message
-        candidate_objects = sample_scene_tensor
+        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
         listener_probs = listener(message_tokens, candidate_objects)
 
         # Verify listener output
         assert listener_probs.shape[0] == 1  # Batch size
         assert (
-            listener_probs.shape[1] == candidate_objects.shape[0]
+            listener_probs.shape[1] == candidate_objects.shape[1]
         )  # Number of candidates
         assert torch.allclose(
             torch.sum(listener_probs, dim=1), torch.ones(1), atol=1e-6
@@ -273,7 +286,7 @@ class TestAgentWorkflow:
         listener = Listener(large_config)
 
         # Speaker generates message and gestures
-        target_object = sample_scene_tensor[0:1]
+        target_object = sample_scene_tensor[0:1].float()  # Convert to float
         message_logits, message_tokens, gesture_logits, gesture_tokens = speaker(
             target_object
         )
@@ -281,35 +294,37 @@ class TestAgentWorkflow:
         # Verify multimodal output
         assert gesture_logits is not None
         assert gesture_tokens is not None
-        assert gesture_logits.shape[1] == large_config.gesture_size
+        assert gesture_logits.shape[1] == large_config.message_length
+        assert gesture_logits.shape[2] == large_config.gesture_size
         assert gesture_tokens.shape[1] == large_config.message_length
 
         # Listener processes both modalities
-        candidate_objects = sample_scene_tensor
+        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
         listener_probs = listener(message_tokens, candidate_objects, gesture_tokens)
 
         # Verify listener output
         assert listener_probs.shape[0] == 1
-        assert listener_probs.shape[1] == candidate_objects.shape[0]
+        assert listener_probs.shape[1] == candidate_objects.shape[1]
 
-    def test_pragmatic_interaction(self, large_config, sample_scene_tensor):
+    def test_pragmatic_interaction(self, sample_config, sample_scene_tensor):
         """Test pragmatic Speaker-Listener interaction."""
         from langlab.agents import PragmaticListener
 
-        speaker = Speaker(large_config)
-        pragmatic_listener = PragmaticListener(large_config)
+        speaker = Speaker(sample_config)
+        literal_listener = Listener(sample_config)
+        pragmatic_listener = PragmaticListener(sample_config, literal_listener, speaker)
 
         # Speaker generates message
-        target_object = sample_scene_tensor[0:1]
+        target_object = sample_scene_tensor[0:1].float()  # Convert to float
         message_logits, message_tokens, _, _ = speaker(target_object)
 
         # Pragmatic listener processes message with context
-        candidate_objects = sample_scene_tensor
+        candidate_objects = sample_scene_tensor.float().unsqueeze(0)  # Add batch dimension
         pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
 
         # Verify pragmatic output
         assert pragmatic_probs.shape[0] == 1
-        assert pragmatic_probs.shape[1] == candidate_objects.shape[0]
+        assert pragmatic_probs.shape[1] == candidate_objects.shape[1]
         assert torch.allclose(
             torch.sum(pragmatic_probs, dim=1), torch.ones(1), atol=1e-6
         )
@@ -400,7 +415,7 @@ class TestEvaluationWorkflow:
                 }
 
                 # Run analysis pipeline
-                token_results = analyze_token_distribution(sample_message_tokens)
+                token_results = analyze_token_distribution(sample_message_tokens.tolist())
                 compo_results = compute_compositional_vs_iid_accuracy(
                     sample_training_logs, heldout_pairs=[("red", "circle")]
                 )

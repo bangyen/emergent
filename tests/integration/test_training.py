@@ -30,6 +30,7 @@ class TestTrainingIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
+                    "total_loss": 0.8,
                     "accuracy": 0.7,
                     "entropy": 1.2,
                     "baseline": 0.6,
@@ -66,6 +67,7 @@ class TestTrainingIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.4,
                     "listener_loss": 0.2,
+                    "total_loss": 0.6,
                     "accuracy": 0.8,
                     "entropy": 1.0,
                     "baseline": 0.7,
@@ -92,6 +94,7 @@ class TestTrainingIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.6,
                     "listener_loss": 0.4,
+                    "total_loss": 1.0,
                     "accuracy": 0.6,
                     "entropy": 1.5,
                     "baseline": 0.5,
@@ -118,6 +121,7 @@ class TestTrainingIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.7,
                     "listener_loss": 0.5,
+                    "total_loss": 1.2,
                     "accuracy": 0.5,
                     "entropy": 1.8,
                     "baseline": 0.4,
@@ -144,6 +148,7 @@ class TestTrainingIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
+                    "total_loss": 0.8,
                     "accuracy": 0.7,
                     "entropy": 1.2,
                     "baseline": 0.6,
@@ -178,6 +183,7 @@ class TestPopulationIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
+                    "total_loss": 0.8,
                     "accuracy": 0.7,
                     "entropy": 1.2,
                     "baseline": 0.6,
@@ -205,15 +211,25 @@ class TestPopulationIntegration:
 
     def test_population_manager_workflow(self, sample_config):
         """Test PopulationManager workflow."""
-        # Create a small population manager
-        manager = PopulationManager(
+        from langlab.population import PopulationManager, PopulationConfig
+
+        # Create population config
+        pop_config = PopulationConfig(
             n_pairs=2,
             lifespan=50,
             replacement_noise=0.1,
             crossplay_prob=0.2,
-            config=sample_config,
+            batch_size=16,
+            learning_rate=1e-3,
+            hidden_size=sample_config.hidden_size,
+            vocabulary_size=sample_config.vocabulary_size,
+            message_length=sample_config.message_length,
+            use_sequence_models=False,
+            entropy_weight=0.01,
             seed=42,
         )
+
+        manager = PopulationManager(pop_config)
 
         # Test population initialization
         assert len(manager.population) == 2
@@ -233,14 +249,25 @@ class TestPopulationIntegration:
 
     def test_crossplay_interactions(self, sample_config):
         """Test cross-pair interactions in population."""
-        manager = PopulationManager(
+        from langlab.population import PopulationManager, PopulationConfig
+
+        # Create population config
+        pop_config = PopulationConfig(
             n_pairs=3,
             lifespan=100,
             replacement_noise=0.1,
             crossplay_prob=0.5,  # High crossplay probability
-            config=sample_config,
+            batch_size=16,
+            learning_rate=1e-3,
+            hidden_size=sample_config.hidden_size,
+            vocabulary_size=sample_config.vocabulary_size,
+            message_length=sample_config.message_length,
+            use_sequence_models=False,
+            entropy_weight=0.01,
             seed=42,
         )
+
+        manager = PopulationManager(pop_config)
 
         # Test crossplay selection
         crossplay_pairs = manager.select_crossplay_pairs()
@@ -268,6 +295,7 @@ class TestContactIntegration:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
+                    "total_loss": 0.8,
                     "accuracy": 0.7,
                     "entropy": 1.2,
                     "baseline": 0.6,
@@ -311,7 +339,6 @@ class TestContactIntegration:
             message_length=sample_contact_config["message_length"],
             seed_a=sample_contact_config["seed_a"],
             seed_b=sample_contact_config["seed_b"],
-            log_every=sample_contact_config["log_every"],
             batch_size=sample_contact_config["batch_size"],
             learning_rate=sample_contact_config["learning_rate"],
             hidden_size=sample_contact_config["hidden_size"],
@@ -393,4 +420,4 @@ class TestTrainingComponents:
 
         # Test that they have sequence-specific components
         assert hasattr(speaker_seq, "gru")
-        assert hasattr(listener_seq, "gru")
+        assert hasattr(listener_seq, "message_encoder")
