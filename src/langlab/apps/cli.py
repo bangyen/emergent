@@ -136,6 +136,21 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     default=0.5,
     help="Ending temperature for Gumbel-Softmax sampling",
 )
+@click.option(
+    "--early-stopping",
+    is_flag=True,
+    help="Enable early stopping to prevent overfitting",
+)
+@click.option(
+    "--early-stopping-patience",
+    default=20,
+    help="Number of evaluation steps to wait before early stopping",
+)
+@click.option(
+    "--early-stopping-min-delta",
+    default=0.01,
+    help="Minimum change to qualify as an improvement for early stopping",
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -156,6 +171,9 @@ def train_cmd(
     distractors: int,
     temperature_start: float,
     temperature_end: float,
+    early_stopping: bool,
+    early_stopping_patience: int,
+    early_stopping_min_delta: float,
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -202,6 +220,9 @@ def train_cmd(
             distractors=distractors,
             temperature_start=temperature_start,
             temperature_end=temperature_end,
+            use_early_stopping=early_stopping,
+            early_stopping_patience=early_stopping_patience,
+            early_stopping_min_delta=early_stopping_min_delta,
         )
         click.echo("Training completed successfully!")
 
