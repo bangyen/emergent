@@ -480,6 +480,7 @@ def train(
         hidden_size=hidden_size,
         multimodal=multimodal,
         distractors=distractors,
+        use_sequence_models=use_sequence_models,
         seed=seed,
     )
 

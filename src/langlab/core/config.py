@@ -26,6 +26,7 @@ class CommunicationConfig:
         multimodal: Whether to enable multimodal communication with gestures (default: False).
         distractors: Number of distractor objects in pragmatic scenarios (default: 0).
         pragmatic: Whether to enable pragmatic inference (default: False).
+        use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq) (default: False).
         seed: Random seed for reproducibility (default: None).
     """
 
@@ -37,6 +38,7 @@ class CommunicationConfig:
     multimodal: bool = False
     distractors: int = 0
     pragmatic: bool = False
+    use_sequence_models: bool = False
     seed: Optional[int] = None
 
     def __post_init__(self) -> None:
