@@ -13,12 +13,12 @@ from typing import Dict, List, Optional, Any
 import os
 import torch
 
-from ..analysis.analysis import (
+from langlab.analysis.analysis import (
     analyze_token_distribution,
     load_training_logs,
     compute_compositional_vs_iid_accuracy,
 )
-from ..data.world import sample_scene, COLORS, SHAPES, SIZES
+from langlab.data.world import sample_scene, COLORS, SHAPES, SIZES
 
 
 def load_checkpoint(checkpoint_path: str) -> Optional[Dict[str, Any]]:
@@ -31,7 +31,9 @@ def load_checkpoint(checkpoint_path: str) -> Optional[Dict[str, Any]]:
         Dictionary containing model state and metadata, or None if loading fails.
     """
     try:
-        checkpoint: Dict[str, Any] = torch.load(checkpoint_path, map_location="cpu")
+        checkpoint: Dict[str, Any] = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=False
+        )
         return checkpoint
     except Exception as e:
         st.error(f"Error loading checkpoint {checkpoint_path}: {e}")
@@ -105,9 +107,56 @@ def create_message_length_plot(logs_df: pd.DataFrame) -> None:
         st.warning("No training data available")
         return
 
-    # For now, we'll show a placeholder
-    # In a full implementation, this would come from the logs
-    st.info("Message length analysis requires additional logging data")
+    # Check if message length data is available
+    if "avg_message_length" not in logs_df.columns:
+        st.info("Message length analysis requires additional logging data")
+        return
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot average message length over time
+    ax.plot(
+        logs_df["step"],
+        logs_df["avg_message_length"],
+        "purple",
+        linewidth=2,
+        label="Average Message Length",
+    )
+
+    # If we have std data, show it as error bars
+    if (
+        "message_length_std" in logs_df.columns
+        and logs_df["message_length_std"].sum() > 0
+    ):
+        ax.fill_between(
+            logs_df["step"],
+            logs_df["avg_message_length"] - logs_df["message_length_std"],
+            logs_df["avg_message_length"] + logs_df["message_length_std"],
+            alpha=0.3,
+            color="purple",
+            label="±1 std",
+        )
+
+    ax.set_xlabel("Training Step")
+    ax.set_ylabel("Message Length")
+    ax.set_title("Message Length Over Time")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    # Add some statistics
+    final_length = logs_df["avg_message_length"].iloc[-1]
+    ax.text(
+        0.02,
+        0.98,
+        f"Final Length: {final_length:.2f}",
+        transform=ax.transAxes,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
+    )
+
+    st.pyplot(fig)
+    plt.close()
 
 
 def create_zipf_plot(tokens: List[int]) -> None:
@@ -202,7 +251,23 @@ def interactive_probe(logs_df: pd.DataFrame) -> None:
     """
     st.subheader("Interactive Agent Probe")
 
-    # Object selection
+    # Checkpoint selection
+    checkpoint_dir = "outputs/checkpoints"
+    if os.path.exists(checkpoint_dir):
+        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pt")]
+        if checkpoint_files:
+            selected_checkpoint = st.selectbox(
+                "Select Model Checkpoint", checkpoint_files
+            )
+            checkpoint_path = os.path.join(checkpoint_dir, selected_checkpoint)
+        else:
+            st.warning("No checkpoint files found")
+            checkpoint_path = None
+    else:
+        st.warning("Checkpoint directory not found")
+        checkpoint_path = None
+
+    # Object selection (for future use - currently using random scenes)
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -223,10 +288,96 @@ def interactive_probe(logs_df: pd.DataFrame) -> None:
             marker = " (TARGET)" if i == target_idx else ""
             st.write(f"{i}: {obj['color']} {obj['size']} {obj['shape']}{marker}")
 
-        # Placeholder for message generation and prediction
-        st.info(
-            "Message generation and listener prediction would be implemented here with loaded models"
-        )
+        # Load model and generate predictions if checkpoint is available
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            try:
+                # Load checkpoint
+                checkpoint = load_checkpoint(checkpoint_path)
+                if checkpoint is None:
+                    st.error("Failed to load checkpoint")
+                    return
+
+                # Extract model configurations from checkpoint
+                comm_config = checkpoint.get("config")
+                if comm_config is None:
+                    st.error("No configuration found in checkpoint")
+                    return
+
+                # Create models (we'll use the basic Speaker/Listener for now)
+                from langlab.core.agents import Speaker, Listener
+
+                # Create models
+                speaker = Speaker(comm_config)
+                listener = Listener(comm_config)
+
+                # Load model states
+                speaker.load_state_dict(checkpoint["speaker_state_dict"])
+                listener.load_state_dict(checkpoint["listener_state_dict"])
+
+                speaker.eval()
+                listener.eval()
+
+                # Convert scene to tensor format
+                from langlab.data.world import encode_object
+                import torch
+
+                # Encode all objects in the scene
+                encoded_objects = []
+                for obj in scene_objects:
+                    encoded_obj = encode_object(obj)
+                    encoded_objects.append(encoded_obj)
+
+                scene_tensor = torch.stack(encoded_objects).unsqueeze(
+                    0
+                )  # Add batch dimension
+                target_object = scene_tensor[0, target_idx].unsqueeze(
+                    0
+                )  # Target object
+
+                # Generate message
+                with torch.no_grad():
+                    speaker_logits, message_tokens, _, _ = speaker(target_object)
+
+                    # Convert message tokens to readable format
+                    message_str = " ".join(
+                        [str(token.item()) for token in message_tokens[0]]
+                    )
+
+                    st.write(f"**Generated Message:** `{message_str}`")
+
+                    # Listener prediction
+                    listener_logits = listener(message_tokens, scene_tensor)
+                    predicted_idx = torch.argmax(listener_logits, dim=1).item()
+
+                    # Display results
+                    st.write("**Listener Prediction:**")
+                    if predicted_idx == target_idx:
+                        st.success(f"✅ Correct! Predicted object {predicted_idx}")
+                    else:
+                        st.error(
+                            f"❌ Incorrect! Predicted object {predicted_idx}, actual target was {target_idx}"
+                        )
+
+                    # Show prediction probabilities
+                    probs = torch.softmax(listener_logits, dim=1)[0]
+                    st.write("**Prediction Probabilities:**")
+                    for i, prob in enumerate(probs):
+                        marker = (
+                            " ← PREDICTED"
+                            if i == predicted_idx
+                            else " ← TARGET" if i == target_idx else ""
+                        )
+                        st.write(f"Object {i}: {prob.item():.3f}{marker}")
+
+            except Exception as e:
+                st.error(f"Error loading model or generating predictions: {e}")
+                st.info(
+                    "This might be due to model architecture differences. Try a different checkpoint."
+                )
+        else:
+            st.info(
+                "Select a checkpoint to enable message generation and listener prediction"
+            )
 
 
 def main() -> None:

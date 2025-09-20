@@ -305,12 +305,19 @@ def train_step(
     # Compute accuracy
     accuracy = rewards.mean().item()
 
+    # Compute message length statistics
+    # For fixed-length messages, the length is constant, but we can still track it
+    avg_message_length = float(message_tokens.shape[1])  # message_length dimension
+    message_length_std = 0.0  # For fixed-length messages, std is 0
+
     return {
         "total_loss": total_loss.item(),
         "listener_loss": listener_loss.item(),
         "speaker_loss": speaker_loss.item(),
         "accuracy": accuracy,
         "baseline": speaker_baseline.average,
+        "avg_message_length": avg_message_length,
+        "message_length_std": message_length_std,
     }
 
 
@@ -442,6 +449,8 @@ def train(
                 "speaker_loss",
                 "accuracy",
                 "baseline",
+                "avg_message_length",
+                "message_length_std",
             ]
         )
 
@@ -491,6 +500,8 @@ def train(
                     metrics["speaker_loss"],
                     metrics["accuracy"],
                     metrics["baseline"],
+                    metrics["avg_message_length"],
+                    metrics["message_length_std"],
                 ]
             )
 
