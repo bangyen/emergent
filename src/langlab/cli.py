@@ -13,6 +13,7 @@ from .utils import get_logger, get_device
 from .train import train
 from .eval import evaluate
 from .population import train_population
+from .contact import train_contact_experiment
 
 
 logger = get_logger(__name__)
@@ -298,6 +299,110 @@ def pop_train(
 
     except Exception as e:
         logger.error(f"Population training failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--pairs", default=4, help="Number of agent pairs per population")
+@click.option(
+    "--steps-a",
+    default=4000,
+    help="Number of training steps for Stage A (separate training)",
+)
+@click.option(
+    "--steps-b",
+    default=4000,
+    help="Number of training steps for Stage B (contact phase)",
+)
+@click.option("--contact-steps", default=2000, help="Number of contact phase steps")
+@click.option(
+    "--p-contact", default=0.3, help="Probability of cross-population interactions"
+)
+@click.option("--k", default=5, help="Number of objects per scene")
+@click.option("--v", default=10, help="Vocabulary size")
+@click.option(
+    "--l", "--message-length", "message_length", default=1, help="Message length"
+)
+@click.option("--seed-a", default=42, help="Random seed for Population A")
+@click.option("--seed-b", default=123, help="Random seed for Population B")
+@click.option("--log-every", default=100, help="Logging frequency")
+@click.option("--batch-size", default=32, help="Batch size")
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
+@click.option(
+    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
+)
+@click.option(
+    "--heldout-a", default="blue,triangle", help="Held-out pairs for Population A"
+)
+@click.option(
+    "--heldout-b", default="red,circle", help="Held-out pairs for Population B"
+)
+def contact(
+    pairs: int,
+    steps_a: int,
+    steps_b: int,
+    contact_steps: int,
+    p_contact: float,
+    k: int,
+    v: int,
+    message_length: int,
+    seed_a: int,
+    seed_b: int,
+    log_every: int,
+    batch_size: int,
+    learning_rate: float,
+    hidden_size: int,
+    use_sequence_models: bool,
+    entropy_weight: float,
+    heldout_a: str,
+    heldout_b: str,
+) -> None:
+    """Train two populations separately, then bring them into contact and measure intelligibility."""
+    logger.info(
+        f"Starting contact experiment: pairs={pairs}, steps_a={steps_a}, "
+        f"steps_b={steps_b}, contact_steps={contact_steps}, p_contact={p_contact}"
+    )
+
+    # Parse heldout pairs
+    def parse_heldout(heldout_str: str) -> list:
+        pairs = heldout_str.split(",")
+        if len(pairs) != 2:
+            raise ValueError("heldout must be exactly two comma-separated attributes")
+        return [(pairs[0].strip(), pairs[1].strip())]
+
+    try:
+        heldout_pairs_a = parse_heldout(heldout_a)
+        heldout_pairs_b = parse_heldout(heldout_b)
+
+        logger.info(f"Population A heldout pairs: {heldout_pairs_a}")
+        logger.info(f"Population B heldout pairs: {heldout_pairs_b}")
+
+        train_contact_experiment(
+            n_pairs=pairs,
+            steps_a=steps_a,
+            steps_b=steps_b,
+            contact_steps=contact_steps,
+            p_contact=p_contact,
+            k=k,
+            v=v,
+            message_length=message_length,
+            seed_a=seed_a,
+            seed_b=seed_b,
+            log_every=log_every,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            hidden_size=hidden_size,
+            use_sequence_models=use_sequence_models,
+            entropy_weight=entropy_weight,
+            heldout_pairs_a=heldout_pairs_a,
+            heldout_pairs_b=heldout_pairs_b,
+        )
+        click.echo("Contact experiment completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Contact experiment failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 
