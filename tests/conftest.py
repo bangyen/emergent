@@ -8,13 +8,13 @@ and test utilities.
 
 import pytest
 import torch
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Generator
 from unittest.mock import patch
 
-from langlab.config import CommunicationConfig
-from langlab.world import make_object, sample_scene
-from langlab.agents import Speaker, Listener
-from langlab.data import ReferentialGameDataset
+from langlab.core.config import CommunicationConfig
+from langlab.data.world import make_object, sample_scene
+from langlab.core.agents import Speaker, Listener
+from langlab.data.data import ReferentialGameDataset
 
 
 @pytest.fixture
@@ -46,15 +46,15 @@ def large_config() -> CommunicationConfig:
 
 
 @pytest.fixture
-def sample_object() -> Dict[str, str]:
+def sample_object() -> Dict[str, Any]:
     """Provide a sample object for testing."""
-    return make_object("red", "circle", "small")
+    return make_object("red", "circle", "small")  # type: ignore
 
 
 @pytest.fixture
-def sample_scene_data() -> Tuple[List[Dict[str, str]], int]:
+def sample_scene_data() -> Tuple[List[Dict[str, Any]], int]:
     """Provide sample scene data for testing."""
-    return sample_scene(k=3, seed=42)
+    return sample_scene(k=3, seed=42)  # type: ignore
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def sample_dataset() -> ReferentialGameDataset:
 
 
 @pytest.fixture
-def mock_checkpoint(sample_config) -> Dict[str, Any]:
+def mock_checkpoint(sample_config: CommunicationConfig) -> Dict[str, Any]:
     """Provide a mock checkpoint for testing."""
     return {
         "step": 1000,
@@ -209,7 +209,7 @@ def sample_contact_config() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_ablation_params() -> Dict[str, List[Any]]:
+def sample_ablation_params() -> Dict[str, Any]:
     """Provide sample ablation study parameters for testing."""
     return {
         "vocab_sizes": [6, 10],
@@ -227,7 +227,7 @@ def sample_ablation_params() -> Dict[str, List[Any]]:
 
 
 @pytest.fixture
-def mock_streamlit():
+def mock_streamlit() -> Generator[Any, None, None]:
     """Mock Streamlit for testing dashboard components."""
     with patch("streamlit.set_page_config"), patch("streamlit.title"), patch(
         "streamlit.markdown"
@@ -248,7 +248,7 @@ def mock_streamlit():
 
 
 @pytest.fixture
-def mock_torch_load():
+def mock_torch_load() -> Generator[Any, None, None]:
     """Mock torch.load for testing checkpoint loading."""
     with patch("torch.load") as mock_load:
         mock_load.return_value = {
@@ -261,7 +261,7 @@ def mock_torch_load():
 
 
 @pytest.fixture
-def mock_subprocess():
+def mock_subprocess() -> Generator[Any, None, None]:
     """Mock subprocess for testing CLI commands."""
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
@@ -269,7 +269,7 @@ def mock_subprocess():
 
 
 @pytest.fixture
-def temp_output_dir(tmp_path):
+def temp_output_dir(tmp_path: Any) -> Any:
     """Provide a temporary output directory for testing."""
     output_dir = tmp_path / "outputs"
     output_dir.mkdir()
@@ -277,7 +277,7 @@ def temp_output_dir(tmp_path):
 
 
 @pytest.fixture
-def sample_zipf_data() -> Dict[str, List[float]]:
+def sample_zipf_data() -> Dict[str, Any]:
     """Provide sample Zipf analysis data for testing."""
     return {
         "ranks": [1, 2, 3, 4, 5],
@@ -298,7 +298,7 @@ def sample_compositional_data() -> Dict[str, float]:
 
 
 # Test markers for organizing tests
-def pytest_configure(config) -> None:
+def pytest_configure(config: Any) -> None:
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "unit: mark test as a unit test")
     config.addinivalue_line("markers", "integration: mark test as an integration test")

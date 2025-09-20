@@ -12,7 +12,7 @@ import pandas as pd
 from typing import Any
 from unittest.mock import patch
 
-from langlab.report import (
+from langlab.analysis.report import (
     load_experiment_results,
     aggregate_results,
     save_aggregated_csv,
@@ -246,11 +246,11 @@ def test_generate_summary_report_empty() -> None:
     assert summary["error"] == "No data available for summary"
 
 
-@patch("langlab.report.create_comparative_chart")
-@patch("langlab.report.create_heatmap_chart")
+@patch("langlab.analysis.report.create_comparative_chart")
+@patch("langlab.analysis.report.create_heatmap_chart")
 def test_create_report_with_charts(mock_heatmap: Any, mock_comparative: Any) -> None:
     """Test report creation with chart generation."""
-    from langlab.report import create_report
+    from langlab.analysis.report import create_report
 
     # Create sample DataFrame
     sample_data = [
@@ -266,7 +266,7 @@ def test_create_report_with_charts(mock_heatmap: Any, mock_comparative: Any) -> 
 
     df = pd.DataFrame(sample_data)
 
-    with patch("langlab.report.aggregate_results", return_value=df):
+    with patch("langlab.analysis.report.aggregate_results", return_value=df):
         with tempfile.TemporaryDirectory() as temp_dir:
             report_info = create_report(
                 input_pattern="test_pattern", output_dir=temp_dir, create_charts=True
@@ -284,7 +284,7 @@ def test_create_report_with_charts(mock_heatmap: Any, mock_comparative: Any) -> 
 
 def test_create_report_no_charts() -> None:
     """Test report creation without chart generation."""
-    from langlab.report import create_report
+    from langlab.analysis.report import create_report
 
     # Create sample DataFrame
     sample_data = [
@@ -300,9 +300,11 @@ def test_create_report_no_charts() -> None:
 
     df = pd.DataFrame(sample_data)
 
-    with patch("langlab.report.aggregate_results", return_value=df):
-        with patch("langlab.report.create_comparative_chart") as mock_comparative:
-            with patch("langlab.report.create_heatmap_chart") as mock_heatmap:
+    with patch("langlab.analysis.report.aggregate_results", return_value=df):
+        with patch(
+            "langlab.analysis.report.create_comparative_chart"
+        ) as mock_comparative:
+            with patch("langlab.analysis.report.create_heatmap_chart") as mock_heatmap:
                 with tempfile.TemporaryDirectory() as temp_dir:
                     report_info = create_report(
                         input_pattern="test_pattern",

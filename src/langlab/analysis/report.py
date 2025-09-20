@@ -13,7 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from .utils import get_logger
+from ..utils.utils import get_logger
 
 logger = get_logger(__name__)
 

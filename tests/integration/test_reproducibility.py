@@ -7,11 +7,11 @@ outputs when using fixed seeds and no stochastic sampling.
 import pytest
 import torch
 
-from langlab.agents import Speaker, Listener
-from langlab.channel import DiscreteChannel
-from langlab.config import CommunicationConfig
-from langlab.utils import set_seed
-from langlab.world import TOTAL_ATTRIBUTES
+from langlab.core.agents import Speaker, Listener
+from langlab.core.channel import DiscreteChannel
+from langlab.core.config import CommunicationConfig
+from langlab.utils.utils import set_seed
+from langlab.data.world import TOTAL_ATTRIBUTES
 
 
 @pytest.fixture

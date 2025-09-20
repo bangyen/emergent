@@ -16,7 +16,7 @@ from .world import (
     SHAPES,
     SIZES,
 )
-from .utils import set_seed
+from ..utils.utils import set_seed
 
 
 class ReferentialGameDataset(Dataset):

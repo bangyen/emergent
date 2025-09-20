@@ -14,10 +14,10 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from .config import CommunicationConfig
-from .data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
-from .utils import get_logger, get_device, set_seed
+from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from ..core.config import CommunicationConfig
+from ..data.data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
+from ..utils.utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
 
@@ -398,7 +398,7 @@ def train(
 
     # Create dataset
     if heldout_pairs is not None:
-        from .data import make_compositional_splits
+        from ..data.data import make_compositional_splits
 
         splits = make_compositional_splits(n_steps * batch_size, k, heldout_pairs, seed)
         dataset: Union[

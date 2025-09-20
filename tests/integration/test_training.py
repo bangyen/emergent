@@ -4,12 +4,13 @@ This module tests complete training workflows, including agent training,
 population dynamics, and contact experiments.
 """
 
+from typing import Any
 import pytest
 from unittest.mock import patch
 
-from langlab.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from langlab.data import ReferentialGameDataset
-from langlab.train import train, MovingAverage
+from langlab.core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from langlab.data.data import ReferentialGameDataset
+from langlab.training.train import train, MovingAverage
 
 # Imports moved inside test methods to ensure proper mocking
 
@@ -19,14 +20,16 @@ from langlab.train import train, MovingAverage
 class TestTrainingIntegration:
     """Test complete training workflows."""
 
-    def test_basic_training_workflow(self, sample_config, temp_output_dir):
+    def test_basic_training_workflow(
+        self, sample_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test basic Speaker-Listener training workflow."""
         # Set up temporary output directory
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
             # Mock the actual training to avoid long execution
-            with patch("langlab.train.train_step") as mock_train_step:
+            with patch("langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
@@ -58,12 +61,14 @@ class TestTrainingIntegration:
                 # Verify training step was called
                 assert mock_train_step.call_count > 0
 
-    def test_sequence_model_training(self, large_config, temp_output_dir):
+    def test_sequence_model_training(
+        self, large_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test training with sequence models."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.train.train_step") as mock_train_step:
+            with patch("langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.4,
                     "listener_loss": 0.2,
@@ -85,12 +90,12 @@ class TestTrainingIntegration:
 
                 assert mock_train_step.call_count > 0
 
-    def test_multimodal_training(self, large_config, temp_output_dir):
+    def test_multimodal_training(self, large_config: Any, temp_output_dir: Any) -> None:
         """Test training with multimodal communication."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.train.train_step") as mock_train_step:
+            with patch("langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.6,
                     "listener_loss": 0.4,
@@ -112,12 +117,12 @@ class TestTrainingIntegration:
 
                 assert mock_train_step.call_count > 0
 
-    def test_pragmatic_training(self, large_config, temp_output_dir):
+    def test_pragmatic_training(self, large_config: Any, temp_output_dir: Any) -> None:
         """Test training with pragmatic inference."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.train.train_step") as mock_train_step:
+            with patch("langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.7,
                     "listener_loss": 0.5,
@@ -139,12 +144,14 @@ class TestTrainingIntegration:
 
                 assert mock_train_step.call_count > 0
 
-    def test_compositional_training(self, sample_config, temp_output_dir):
+    def test_compositional_training(
+        self, sample_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test training with compositional splits."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.train.train_step") as mock_train_step:
+            with patch("langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
@@ -173,18 +180,20 @@ class TestPopulationIntegration:
     """Test population dynamics and cultural transmission."""
 
     def test_population_training_workflow(
-        self, sample_population_config, temp_output_dir
-    ):
+        self, sample_population_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test population training workflow."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
             # Mock the train_population function directly
-            with patch("langlab.population.train_population") as mock_train_pop:
+            with patch(
+                "langlab.experiments.population.train_population"
+            ) as mock_train_pop:
                 mock_train_pop.return_value = None
 
                 # Import after patching
-                from langlab.population import train_population
+                from langlab.experiments.population import train_population
 
                 train_population(
                     n_steps=20,
@@ -206,9 +215,9 @@ class TestPopulationIntegration:
 
                 assert mock_train_pop.call_count == 1
 
-    def test_population_manager_workflow(self, sample_config):
+    def test_population_manager_workflow(self, sample_config: Any) -> None:
         """Test PopulationManager workflow."""
-        from langlab.population import PopulationManager, PopulationConfig
+        from langlab.experiments.population import PopulationManager, PopulationConfig
 
         # Create population config
         pop_config = PopulationConfig(
@@ -254,9 +263,9 @@ class TestPopulationIntegration:
             pair.age <= 2 for pair in manager.pairs
         )  # After replacement, ages should be low
 
-    def test_crossplay_interactions(self, sample_config):
+    def test_crossplay_interactions(self, sample_config: Any) -> None:
         """Test cross-pair interactions in population."""
-        from langlab.population import PopulationManager, PopulationConfig
+        from langlab.experiments.population import PopulationManager, PopulationConfig
 
         # Create population config
         pop_config = PopulationConfig(
@@ -287,19 +296,21 @@ class TestPopulationIntegration:
 class TestContactIntegration:
     """Test contact experiments between populations."""
 
-    def test_contact_experiment_workflow(self, sample_contact_config, temp_output_dir):
+    def test_contact_experiment_workflow(
+        self, sample_contact_config: Any, temp_output_dir: Any
+    ) -> None:
         """Test contact experiment workflow."""
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
             # Mock the train_contact_experiment function directly
             with patch(
-                "langlab.contact.train_contact_experiment"
+                "langlab.experiments.contact.train_contact_experiment"
             ) as mock_train_contact:
                 mock_train_contact.return_value = None
 
                 # Import after patching
-                from langlab.contact import train_contact_experiment
+                from langlab.experiments.contact import train_contact_experiment
 
                 train_contact_experiment(
                     n_pairs=sample_contact_config["n_pairs"],
@@ -324,9 +335,9 @@ class TestContactIntegration:
 
                 assert mock_train_contact.call_count == 1
 
-    def test_contact_experiment_config(self, sample_contact_config):
+    def test_contact_experiment_config(self, sample_contact_config: Any) -> None:
         """Test contact experiment configuration."""
-        from langlab.contact import ContactConfig
+        from langlab.experiments.contact import ContactConfig
 
         config = ContactConfig(
             n_pairs=sample_contact_config["n_pairs"],
@@ -359,7 +370,7 @@ class TestContactIntegration:
 class TestTrainingComponents:
     """Test individual training components integration."""
 
-    def test_moving_average_baseline(self):
+    def test_moving_average_baseline(self) -> None:
         """Test MovingAverage baseline functionality."""
         baseline = MovingAverage(window_size=5)
 
@@ -382,7 +393,7 @@ class TestTrainingComponents:
             abs(baseline.average - 0.4) < 1e-6
         )  # Average of [0.2, 0.3, 0.4, 0.5, 0.6]
 
-    def test_agent_initialization_integration(self, sample_config):
+    def test_agent_initialization_integration(self, sample_config: Any) -> None:
         """Test agent initialization in training context."""
         speaker = Speaker(sample_config)
         listener = Listener(sample_config)
@@ -395,7 +406,7 @@ class TestTrainingComponents:
         assert speaker.config.vocabulary_size == sample_config.vocabulary_size
         assert listener.config.vocabulary_size == sample_config.vocabulary_size
 
-    def test_dataset_integration(self, sample_config):
+    def test_dataset_integration(self, sample_config: Any) -> None:
         """Test dataset integration with training."""
         dataset = ReferentialGameDataset(n_scenes=5, k=3, seed=42)
 
@@ -409,7 +420,7 @@ class TestTrainingComponents:
         assert 0 <= target_idx < 3
         assert len(candidates) == 3
 
-    def test_sequence_model_integration(self, large_config):
+    def test_sequence_model_integration(self, large_config: Any) -> None:
         """Test sequence model integration."""
         speaker_seq = SpeakerSeq(large_config)
         listener_seq = ListenerSeq(large_config)

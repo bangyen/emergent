@@ -8,9 +8,9 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from langlab.config import CommunicationConfig
-from langlab.agents import Speaker, Listener, PragmaticListener
-from langlab.world import sample_distractor_scene, encode_object
+from langlab.core.config import CommunicationConfig
+from langlab.core.agents import Speaker, Listener, PragmaticListener
+from langlab.data.world import sample_distractor_scene, encode_object
 
 
 class TestPragmaticListener:

@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import CommunicationConfig
-from .world import TOTAL_ATTRIBUTES
+from ..data.world import TOTAL_ATTRIBUTES
 
 
 class Speaker(nn.Module):

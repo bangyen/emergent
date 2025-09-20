@@ -6,7 +6,7 @@ including Zipf's law analysis and token distribution statistics.
 
 import numpy as np
 
-from langlab.analysis import (
+from langlab.analysis.analysis import (
     compute_zipf_slope,
     analyze_token_distribution,
     load_training_logs,

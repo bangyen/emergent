@@ -4,11 +4,12 @@ This module tests the command-line interface integration, including
 end-to-end workflows and command execution.
 """
 
+from typing import Any
 import pytest
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
-from langlab.cli import main
+from langlab.apps.cli import main
 
 
 @pytest.mark.integration
@@ -49,8 +50,8 @@ class TestCLIIntegration:
         assert "Available colors" in result.output
         assert "Device:" in result.output
 
-    @patch("langlab.cli.train")
-    def test_train_command_mock(self, mock_train):
+    @patch("langlab.apps.cli.train")
+    def test_train_command_mock(self, mock_train: Any) -> None:
         """Test train command with mocked training function."""
         mock_train.return_value = None
 
@@ -63,8 +64,8 @@ class TestCLIIntegration:
         assert "Training completed successfully!" in result.output
         mock_train.assert_called_once()
 
-    @patch("langlab.cli.evaluate")
-    def test_eval_command_mock(self, mock_eval):
+    @patch("langlab.apps.cli.evaluate")
+    def test_eval_command_mock(self, mock_eval: Any) -> None:
         """Test eval command with mocked evaluation function."""
         mock_eval.return_value = {"acc": 0.85}
 
@@ -87,8 +88,8 @@ class TestCLIIntegration:
         assert "Accuracy: 0.8500" in result.output
         mock_eval.assert_called_once()
 
-    @patch("langlab.cli.train_population")
-    def test_pop_train_command_mock(self, mock_train_pop):
+    @patch("langlab.apps.cli.train_population")
+    def test_pop_train_command_mock(self, mock_train_pop: Any) -> None:
         """Test population training command with mocked function."""
         mock_train_pop.return_value = None
 
@@ -101,8 +102,8 @@ class TestCLIIntegration:
         assert "Population training completed successfully!" in result.output
         mock_train_pop.assert_called_once()
 
-    @patch("langlab.cli.train_contact_experiment")
-    def test_contact_command_mock(self, mock_contact):
+    @patch("langlab.apps.cli.train_contact_experiment")
+    def test_contact_command_mock(self, mock_contact: Any) -> None:
         """Test contact experiment command with mocked function."""
         mock_contact.return_value = None
 
@@ -126,8 +127,8 @@ class TestCLIIntegration:
         assert "Contact experiment completed successfully!" in result.output
         mock_contact.assert_called_once()
 
-    @patch("langlab.cli.train_grounded")
-    def test_train_grid_command_mock(self, mock_grounded):
+    @patch("langlab.apps.cli.train_grounded")
+    def test_train_grid_command_mock(self, mock_grounded: Any) -> None:
         """Test grounded training command with mocked function."""
         mock_grounded.return_value = None
 
@@ -140,8 +141,8 @@ class TestCLIIntegration:
         assert "Grounded training completed successfully!" in result.output
         mock_grounded.assert_called_once()
 
-    @patch("langlab.cli.run_ablation_suite")
-    def test_ablate_command_mock(self, mock_ablate):
+    @patch("langlab.apps.cli.run_ablation_suite")
+    def test_ablate_command_mock(self, mock_ablate: Any) -> None:
         """Test ablation command with mocked function."""
         mock_ablate.return_value = [{"exp_id": "test_1", "acc": 0.8}]
 
@@ -165,8 +166,8 @@ class TestCLIIntegration:
         assert "Ablation study completed successfully!" in result.output
         mock_ablate.assert_called_once()
 
-    @patch("langlab.cli.create_report")
-    def test_report_command_mock(self, mock_report):
+    @patch("langlab.apps.cli.create_report")
+    def test_report_command_mock(self, mock_report: Any) -> None:
         """Test report command with mocked function."""
         mock_report.return_value = {
             "csv_path": "test.csv",
@@ -184,7 +185,7 @@ class TestCLIIntegration:
         mock_report.assert_called_once()
 
     @patch("subprocess.run")
-    def test_dash_command_mock(self, mock_subprocess):
+    def test_dash_command_mock(self, mock_subprocess: Any) -> None:
         """Test dashboard command with mocked subprocess."""
         mock_subprocess.return_value = Mock(returncode=0)
 
@@ -195,13 +196,13 @@ class TestCLIIntegration:
         # Just verify it doesn't crash immediately
         assert result.exit_code == 0 or result.exit_code == 1  # May exit due to mocking
 
-    def test_invalid_command(self):
+    def test_invalid_command(self) -> None:
         """Test that invalid commands return appropriate error."""
         runner = CliRunner()
         result = runner.invoke(main, ["invalid-command"])
         assert result.exit_code != 0
 
-    def test_command_with_invalid_options(self):
+    def test_command_with_invalid_options(self) -> None:
         """Test commands with invalid options."""
         runner = CliRunner()
         result = runner.invoke(main, ["sample", "--k", "0"])  # Invalid k value
@@ -209,7 +210,7 @@ class TestCLIIntegration:
         assert result.exit_code == 0  # CLI succeeds
         assert "Error:" in result.output  # But shows error message
 
-    def test_heldout_parsing(self):
+    def test_heldout_parsing(self) -> None:
         """Test heldout pair parsing in train command."""
         runner = CliRunner()
         result = runner.invoke(
@@ -218,7 +219,7 @@ class TestCLIIntegration:
         # Should not crash on parsing
         assert result.exit_code == 0 or result.exit_code == 1  # May fail on training
 
-    def test_heldout_parsing_invalid(self):
+    def test_heldout_parsing_invalid(self) -> None:
         """Test invalid heldout pair parsing."""
         runner = CliRunner()
         result = runner.invoke(
@@ -243,19 +244,19 @@ class TestCLIIntegration:
 class TestCLIErrorHandling:
     """Test CLI error handling and edge cases."""
 
-    def test_missing_required_arguments(self):
+    def test_missing_required_arguments(self) -> None:
         """Test that missing required arguments are handled properly."""
         runner = CliRunner()
         result = runner.invoke(main, ["eval"])  # Missing required --ckpt
         assert result.exit_code != 0
 
-    def test_invalid_numeric_arguments(self):
+    def test_invalid_numeric_arguments(self) -> None:
         """Test handling of invalid numeric arguments."""
         runner = CliRunner()
         result = runner.invoke(main, ["sample", "--k", "invalid"])
         assert result.exit_code != 0
 
-    def test_out_of_range_arguments(self):
+    def test_out_of_range_arguments(self) -> None:
         """Test handling of out-of-range arguments."""
         runner = CliRunner()
         result = runner.invoke(main, ["sample", "--k", "-1"])
@@ -263,8 +264,8 @@ class TestCLIErrorHandling:
         assert result.exit_code == 0  # CLI succeeds
         assert "Error:" in result.output  # But shows error message
 
-    @patch("langlab.cli.train")
-    def test_training_error_handling(self, mock_train):
+    @patch("langlab.apps.cli.train")
+    def test_training_error_handling(self, mock_train: Any) -> None:
         """Test that training errors are handled gracefully."""
         mock_train.side_effect = Exception("Training failed")
 
@@ -280,7 +281,7 @@ class TestCLIErrorHandling:
 class TestCLIWorkflows:
     """Test complete CLI workflows."""
 
-    def test_sample_to_dataset_workflow(self):
+    def test_sample_to_dataset_workflow(self) -> None:
         """Test workflow from sampling to dataset generation."""
         runner = CliRunner()
 
@@ -292,7 +293,7 @@ class TestCLIWorkflows:
         result2 = runner.invoke(main, ["dataset", "--n-scenes", "5", "--k", "3"])
         assert result2.exit_code == 0
 
-    def test_info_to_sample_workflow(self):
+    def test_info_to_sample_workflow(self) -> None:
         """Test workflow from info to sampling."""
         runner = CliRunner()
 
@@ -304,9 +305,9 @@ class TestCLIWorkflows:
         result2 = runner.invoke(main, ["sample", "--k", "3"])
         assert result2.exit_code == 0
 
-    @patch("langlab.cli.train")
-    @patch("langlab.cli.evaluate")
-    def test_train_to_eval_workflow(self, mock_eval, mock_train):
+    @patch("langlab.apps.cli.train")
+    @patch("langlab.apps.cli.evaluate")
+    def test_train_to_eval_workflow(self, mock_eval: Any, mock_train: Any) -> None:
         """Test workflow from training to evaluation."""
         mock_train.return_value = None
         mock_eval.return_value = {"acc": 0.85}

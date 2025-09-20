@@ -7,16 +7,16 @@ referential game framework from the command line.
 import click
 from typing import Optional
 
-from .world import sample_scene, COLORS, SHAPES, SIZES
-from .data import ReferentialGameDataset
-from .utils import get_logger, get_device
-from .train import train
-from .eval import evaluate
-from .population import train_population
-from .contact import train_contact_experiment
-from .train_grounded import train_grounded
-from .ablate import run_ablation_suite
-from .report import create_report
+from ..data.world import sample_scene, COLORS, SHAPES, SIZES
+from ..data.data import ReferentialGameDataset
+from ..utils.utils import get_logger, get_device
+from ..training.train import train
+from ..analysis.eval import evaluate
+from ..experiments.population import train_population
+from ..experiments.contact import train_contact_experiment
+from ..training.train_grounded import train_grounded
+from ..experiments.ablate import run_ablation_suite
+from ..analysis.report import create_report
 
 
 logger = get_logger(__name__)

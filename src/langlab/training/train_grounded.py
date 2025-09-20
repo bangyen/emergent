@@ -18,9 +18,9 @@ from .grounding import (
     run_grounded_episode,
     evaluate_grounded_performance,
 )
-from .grid import Grid, create_curriculum_grids
-from .config import CommunicationConfig
-from .utils import get_logger, get_device, set_seed
+from ..experiments.grid import Grid, create_curriculum_grids
+from ..core.config import CommunicationConfig
+from ..utils.utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
 

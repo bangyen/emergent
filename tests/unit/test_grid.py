@@ -6,7 +6,7 @@ grounded language learning environment.
 
 import torch
 
-from langlab.grid import Grid, Action, NavigationPolicy, create_simple_grid
+from langlab.experiments.grid import Grid, Action, NavigationPolicy, create_simple_grid
 
 
 class TestGrid:

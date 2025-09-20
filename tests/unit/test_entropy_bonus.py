@@ -7,7 +7,7 @@ and ensure it behaves correctly for encouraging exploration.
 import torch
 import torch.nn.functional as F
 
-from langlab.train import compute_entropy_bonus
+from langlab.training.train import compute_entropy_bonus
 
 
 def test_entropy_nonnegative() -> None:

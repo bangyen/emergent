@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple, Optional
 
 import torch
 
-from .utils import set_seed
+from ..utils.utils import set_seed
 
 
 # Object attribute definitions

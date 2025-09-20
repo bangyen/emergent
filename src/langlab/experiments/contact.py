@@ -16,10 +16,10 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from .agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from .data import ReferentialGameDataset
+from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from ..data.data import ReferentialGameDataset
 from .population import PopulationManager, PopulationConfig
-from .utils import get_logger, get_device, set_seed
+from ..utils.utils import get_logger, get_device, set_seed
 
 logger = get_logger(__name__)
 
