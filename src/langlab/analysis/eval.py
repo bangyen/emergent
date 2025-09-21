@@ -134,12 +134,11 @@ def evaluate(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                # SpeakerSeq returns (logits, tokens)
-                _, message_tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                # Regular Speaker returns (logits, tokens, gesture_logits, gesture_tokens)
-                _, message_tokens, _, _ = speaker(target_objects)
+                _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)
@@ -682,10 +681,11 @@ def _evaluate_with_seed(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                _, message_tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                _, message_tokens, _, _ = speaker(target_objects)
+                _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)
@@ -808,12 +808,11 @@ def evaluate_with_temperature_scaling(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages with temperature
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                _, message_tokens = speaker(target_objects, temperature=temperature)
+            speaker_output = speaker(target_objects, temperature=temperature)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                _, message_tokens, _, _ = speaker(
-                    target_objects, temperature=temperature
-                )
+                _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)
@@ -976,13 +975,11 @@ def evaluate_with_uncertainty_quantification(
 
             for _ in range(n_samples):
                 # Speaker generates messages
-                if (
-                    hasattr(config, "use_sequence_models")
-                    and config.use_sequence_models
-                ):
-                    _, message_tokens = speaker(target_objects)
+                speaker_output = speaker(target_objects)
+                if len(speaker_output) == 4:
+                    _, message_tokens, _, _ = speaker_output
                 else:
-                    _, message_tokens, _, _ = speaker(target_objects)
+                    _, message_tokens = speaker_output
 
                 # Listener makes predictions
                 listener_probs = listener(message_tokens, candidate_objects)
@@ -1143,10 +1140,11 @@ def evaluate_with_confidence_metrics(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                _, message_tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                _, message_tokens, _, _ = speaker(target_objects)
+                _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)
@@ -1337,13 +1335,11 @@ def evaluate_ensemble_robustness(
 
             for speaker, listener, config in models:
                 # Speaker generates messages
-                if (
-                    hasattr(config, "use_sequence_models")
-                    and config.use_sequence_models
-                ):
-                    _, message_tokens = speaker(target_objects)
+                speaker_output = speaker(target_objects)
+                if len(speaker_output) == 4:
+                    _, message_tokens, _, _ = speaker_output
                 else:
-                    _, message_tokens, _, _ = speaker(target_objects)
+                    _, message_tokens = speaker_output
 
                 # Listener makes predictions
                 listener_probs = listener(message_tokens, candidate_objects)
@@ -1510,10 +1506,11 @@ def evaluate_with_bootstrap_confidence_intervals(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker generates messages
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                _, message_tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                _, message_tokens, _, _ = speaker(target_objects)
+                _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)

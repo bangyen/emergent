@@ -545,16 +545,11 @@ def evaluate_validation(
                 )
             else:
                 # Handle different speaker types
-                if isinstance(speaker, ContrastiveSpeaker):
-                    _, message_tokens, _, _ = speaker(
-                        target_objects, temperature=temperature
-                    )
-                elif use_sequence_models:
-                    _, message_tokens = speaker(target_objects, temperature=temperature)
+                speaker_output = speaker(target_objects, temperature=temperature)
+                if len(speaker_output) == 4:
+                    _, message_tokens, _, _ = speaker_output
                 else:
-                    _, message_tokens, _, _ = speaker(
-                        target_objects, temperature=temperature
-                    )
+                    _, message_tokens = speaker_output
 
             # Listener makes predictions
             listener_probs = listener(message_tokens, candidate_objects)
@@ -655,19 +650,29 @@ def train_step(
 
     # Speaker generates messages
     if config.multimodal:
-        speaker_logits, message_tokens, gesture_logits, gesture_tokens = speaker(
-            target_objects, temperature=temperature
-        )
+        speaker_output = speaker(target_objects, temperature=temperature)
+        if len(speaker_output) == 4:
+            speaker_logits, message_tokens, gesture_logits, gesture_tokens = (
+                speaker_output
+            )
+        else:
+            speaker_logits, message_tokens = speaker_output
+            gesture_tokens = None
     else:
         if use_sequence_models:
-            speaker_logits, message_tokens = speaker(
-                target_objects, temperature=temperature
-            )
+            speaker_output = speaker(target_objects, temperature=temperature)
+            if len(speaker_output) == 4:
+                speaker_logits, message_tokens, _, _ = speaker_output
+            else:
+                speaker_logits, message_tokens = speaker_output
             gesture_tokens = None
         else:
-            speaker_logits, message_tokens, _, _ = speaker(
-                target_objects, temperature=temperature
-            )
+            # Handle different speaker types that may return different numbers of values
+            speaker_output = speaker(target_objects, temperature=temperature)
+            if len(speaker_output) == 4:
+                speaker_logits, message_tokens, _, _ = speaker_output
+            else:
+                speaker_logits, message_tokens = speaker_output
             gesture_tokens = None
 
     # Listener makes predictions

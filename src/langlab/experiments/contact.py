@@ -350,7 +350,11 @@ class ContactExperiment:
                 target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
                 # Speaker generates messages
-                _, message_tokens, _, _ = speaker(target_objects)
+                speaker_output = speaker(target_objects)
+                if len(speaker_output) == 4:
+                    _, message_tokens, _, _ = speaker_output
+                else:
+                    _, message_tokens = speaker_output
 
                 # Listener makes predictions
                 listener_probs = listener(message_tokens, candidate_objects)
@@ -415,7 +419,11 @@ class ContactExperiment:
                     ]
 
                     # Generate messages
-                    _, message_tokens, _, _ = pair.speaker(target_objects)
+                    speaker_output = pair.speaker(target_objects)
+                    if len(speaker_output) == 4:
+                        _, message_tokens, _, _ = speaker_output
+                    else:
+                        _, message_tokens = speaker_output
                     messages.append(message_tokens)
 
         return messages
