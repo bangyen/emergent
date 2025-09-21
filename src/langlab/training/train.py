@@ -1061,6 +1061,12 @@ def train(
             ]
         )
 
+    # Initialize message logging for language analysis
+    message_logs_file = "outputs/logs/message_logs.csv"
+    with open(message_logs_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["step", "message_tokens"])
+
     step = 0
     dataloader_iter = iter(train_dataloader)
 
@@ -1156,6 +1162,45 @@ def train(
                     metrics["message_length_std"],
                 ]
             )
+
+        # Save message tokens for language analysis (every 10 steps to avoid too much data)
+        if step % 10 == 0:
+            # Get message tokens from the last batch
+            with torch.no_grad():
+                # Generate a sample message to log
+                sample_batch = next(iter(train_dataloader))
+                scene_tensor, target_indices, _ = sample_batch
+                scene_tensor = scene_tensor.to(device)
+                target_indices = target_indices.to(device)
+
+                # Extract target objects
+                batch_size = scene_tensor.size(0)
+                target_objects = scene_tensor[torch.arange(batch_size), target_indices]
+
+                # Generate message
+                speaker_output = speaker(target_objects, temperature=temperature)
+                if len(speaker_output) == 4:
+                    _, message_tokens, _, _ = speaker_output
+                else:
+                    _, message_tokens = speaker_output
+
+                # Convert message tokens to string format
+                # Handle both scalar tokens and one-hot encoded tokens
+                token_strings = []
+                for token in message_tokens[0]:
+                    if token.numel() == 1:
+                        # Scalar token
+                        token_strings.append(str(token.item()))
+                    else:
+                        # One-hot encoded token - find the index of the 1
+                        token_idx = torch.argmax(token).item()
+                        token_strings.append(str(token_idx))
+                message_str = " ".join(token_strings)
+
+                # Save to message logs
+                with open(message_logs_file, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([step, message_str])
 
         # Save checkpoint
         if step % eval_every == 0:
