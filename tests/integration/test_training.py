@@ -119,6 +119,7 @@ class TestTrainingIntegration:
                     seed=42,
                     multimodal=True,
                     entropy_weight=0.01,
+                    use_early_stopping=False,  # Disable early stopping for test
                 )
 
                 assert mock_train_step.call_count > 0
