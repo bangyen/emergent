@@ -137,9 +137,10 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     help="Ending temperature for Gumbel-Softmax sampling",
 )
 @click.option(
-    "--early-stopping",
+    "--disable-early-stopping",
     is_flag=True,
-    help="Enable early stopping to prevent overfitting",
+    default=False,
+    help="Disable early stopping to prevent overfitting (enabled by default)",
 )
 @click.option(
     "--early-stopping-patience",
@@ -150,6 +151,40 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     "--early-stopping-min-delta",
     default=0.001,
     help="Minimum change to qualify as an improvement for early stopping",
+)
+@click.option(
+    "--disable-contrastive",
+    is_flag=True,
+    default=False,
+    help="Disable contrastive learning (enabled by default)",
+)
+@click.option(
+    "--contrastive-temperature",
+    default=0.07,
+    help="Temperature parameter for contrastive learning",
+)
+@click.option(
+    "--contrastive-weight",
+    default=0.1,
+    help="Weight for contrastive loss in total loss",
+)
+@click.option(
+    "--disable-ema",
+    is_flag=True,
+    default=False,
+    help="Disable Exponential Moving Average for model parameters (enabled by default)",
+)
+@click.option(
+    "--disable-warmup",
+    is_flag=True,
+    default=False,
+    help="Disable learning rate warmup (enabled by default)",
+)
+@click.option(
+    "--disable-curriculum",
+    is_flag=True,
+    default=False,
+    help="Disable curriculum learning with progressive difficulty (enabled by default)",
 )
 def train_cmd(
     steps: int,
@@ -171,9 +206,15 @@ def train_cmd(
     distractors: int,
     temperature_start: float,
     temperature_end: float,
-    early_stopping: bool,
+    disable_early_stopping: bool,
     early_stopping_patience: int,
     early_stopping_min_delta: float,
+    disable_contrastive: bool,
+    contrastive_temperature: float,
+    contrastive_weight: float,
+    disable_ema: bool,
+    disable_warmup: bool,
+    disable_curriculum: bool,
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -185,6 +226,25 @@ def train_cmd(
         logger.info("Using multimodal communication with gestures")
     if distractors > 0:
         logger.info(f"Using {distractors} distractor objects for pragmatic inference")
+    # Convert disable flags to enable flags
+    use_contrastive = not disable_contrastive
+    use_ema = not disable_ema
+    use_warmup = not disable_warmup
+    use_curriculum = not disable_curriculum
+    early_stopping = not disable_early_stopping
+
+    if use_contrastive:
+        logger.info(
+            f"Using contrastive learning with temperature={contrastive_temperature}, weight={contrastive_weight}"
+        )
+    if use_ema:
+        logger.info("Using Exponential Moving Average for model parameters")
+    if use_warmup:
+        logger.info("Using learning rate warmup")
+    if use_curriculum:
+        logger.info("Using curriculum learning with progressive difficulty")
+    if early_stopping:
+        logger.info(f"Using early stopping with patience={early_stopping_patience}")
 
     # Parse heldout pairs
     heldout_pairs = None
@@ -223,6 +283,12 @@ def train_cmd(
             use_early_stopping=early_stopping,
             early_stopping_patience=early_stopping_patience,
             early_stopping_min_delta=early_stopping_min_delta,
+            use_contrastive=use_contrastive,
+            contrastive_temperature=contrastive_temperature,
+            contrastive_weight=contrastive_weight,
+            use_ema=use_ema,
+            use_warmup=use_warmup,
+            use_curriculum=use_curriculum,
         )
         click.echo("Training completed successfully!")
 

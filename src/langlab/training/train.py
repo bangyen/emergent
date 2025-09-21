@@ -14,6 +14,11 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from ..core.contrastive_agents import (
+    ContrastiveSpeaker,
+    ContrastiveListener,
+    compute_contrastive_loss,
+)
 from ..core.config import CommunicationConfig
 from ..data.data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
 from ..utils.utils import get_logger, get_device, set_seed
@@ -379,7 +384,7 @@ def compute_length_cost(message_tokens: torch.Tensor, vocab_size: int) -> torch.
 
 
 def compute_listener_loss(
-    listener: Union[Listener, ListenerSeq],
+    listener: Union[Listener, ListenerSeq, ContrastiveListener],
     message_tokens: torch.Tensor,
     candidate_objects: torch.Tensor,
     target_indices: torch.Tensor,
@@ -414,7 +419,7 @@ def compute_listener_loss(
 
 
 def compute_speaker_loss(
-    speaker: Union[Speaker, SpeakerSeq],
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
     speaker_logits: torch.Tensor,
     rewards: torch.Tensor,
     baseline: float,
@@ -486,8 +491,8 @@ def compute_speaker_loss(
 
 
 def evaluate_validation(
-    speaker: Union[Speaker, SpeakerSeq],
-    listener: Union[Listener, ListenerSeq],
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
+    listener: Union[Listener, ListenerSeq, ContrastiveListener],
     val_dataloader: DataLoader,
     config: CommunicationConfig,
     device: Optional[torch.device] = None,
@@ -539,7 +544,12 @@ def evaluate_validation(
                     target_objects, temperature=temperature
                 )
             else:
-                if use_sequence_models:
+                # Handle different speaker types
+                if isinstance(speaker, ContrastiveSpeaker):
+                    _, message_tokens, _, _ = speaker(
+                        target_objects, temperature=temperature
+                    )
+                elif use_sequence_models:
                     _, message_tokens = speaker(target_objects, temperature=temperature)
                 else:
                     _, message_tokens, _, _ = speaker(
@@ -564,8 +574,8 @@ def evaluate_validation(
 
 
 def train_step(
-    speaker: Union[Speaker, SpeakerSeq],
-    listener: Union[Listener, ListenerSeq],
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
+    listener: Union[Listener, ListenerSeq, ContrastiveListener],
     batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     speaker_optimizer: torch.optim.Optimizer,
     listener_optimizer: torch.optim.Optimizer,
@@ -581,8 +591,8 @@ def train_step(
     listener_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     step: int = 1,
     use_ema: bool = False,
-    speaker_ema: Optional[Union[Speaker, SpeakerSeq]] = None,
-    listener_ema: Optional[Union[Listener, ListenerSeq]] = None,
+    speaker_ema: Optional[Union[Speaker, SpeakerSeq, ContrastiveSpeaker]] = None,
+    listener_ema: Optional[Union[Listener, ListenerSeq, ContrastiveListener]] = None,
     ema_decay: float = 0.999,
     use_warmup: bool = False,
     has_warmup: bool = False,
@@ -690,6 +700,20 @@ def train_step(
     # Combined loss
     total_loss = listener_loss + lambda_speaker * speaker_loss
 
+    # Add contrastive loss if using contrastive agents
+    if isinstance(speaker, ContrastiveSpeaker) and isinstance(
+        listener, ContrastiveListener
+    ):
+        contrastive_loss = compute_contrastive_loss(
+            speaker,
+            listener,
+            target_objects,
+            message_tokens,
+            candidate_objects,
+            temperature=config.contrastive_temperature,
+        )
+        total_loss = total_loss + config.contrastive_weight * contrastive_loss
+
     # Backward pass
     speaker_optimizer.zero_grad()
     listener_optimizer.zero_grad()
@@ -777,12 +801,15 @@ def train(
     use_early_stopping: bool = True,
     early_stopping_patience: int = 50,
     early_stopping_min_delta: float = 0.001,
+    use_contrastive: bool = True,
+    contrastive_temperature: float = 0.07,
+    contrastive_weight: float = 0.1,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
     This function runs the main training loop for emergent language experiments,
     training both agents through interaction in referential games. Supports both
-    regular and sequence-aware models, and compositional splits for generalization testing.
+    regular and sequence-aware models, contrastive learning, and compositional splits for generalization testing.
 
     Args:
         n_steps: Number of training steps to perform.
@@ -822,13 +849,23 @@ def train(
         multimodal=multimodal,
         distractors=distractors,
         use_sequence_models=use_sequence_models,
+        use_contrastive=use_contrastive,
+        contrastive_temperature=contrastive_temperature,
+        contrastive_weight=contrastive_weight,
         seed=seed,
     )
 
     # Create agents
-    if use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    if use_contrastive:
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+        logger.info("Using contrastive learning agents")
+    elif use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
         logger.info("Using sequence-aware models (SpeakerSeq/ListenerSeq)")
     else:
         speaker = Speaker(config).to(device)
@@ -915,6 +952,7 @@ def train(
     else:
         speaker_ema = None
         listener_ema = None
+        ema_decay = 0.999  # Default value, not used when use_ema=False
 
     # Early stopping for preventing overfitting
     if use_early_stopping:

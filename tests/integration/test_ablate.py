@@ -189,6 +189,7 @@ def test_run_ablation_suite_experiment_id_format() -> None:
                 (),
                 {
                     "use_sequence_models": True,
+                    "use_contrastive": False,  # Explicitly disable contrastive learning
                     "vocabulary_size": 12,
                     "message_length": 2,
                     "hidden_size": 128,
