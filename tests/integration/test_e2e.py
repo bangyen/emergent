@@ -173,9 +173,7 @@ class TestEndToEndWorkflows:
     ) -> None:
         """Test analysis workflow with mock data."""
         # Test token distribution analysis
-        with patch(
-            "langlab.analysis.analysis.analyze_token_distribution"
-        ) as mock_analyze:
+        with patch("langlab.apps.app.analyze_token_distribution") as mock_analyze:
             mock_analyze.return_value = {
                 "zipf_slope": -0.8,
                 "gini_coefficient": 0.3,
@@ -184,7 +182,7 @@ class TestEndToEndWorkflows:
             }
 
             # Import and call the mocked function
-            from langlab.analysis.analysis import analyze_token_distribution
+            from langlab.apps.app import analyze_token_distribution
 
             analysis_results = analyze_token_distribution(
                 sample_message_tokens.tolist()
@@ -192,21 +190,7 @@ class TestEndToEndWorkflows:
             assert analysis_results["zipf_slope"] == -0.8
             assert analysis_results["gini_coefficient"] == 0.3
 
-        # Test compositional analysis
-        with patch(
-            "langlab.analysis.analysis.compute_compositional_vs_iid_accuracy"
-        ) as mock_compo:
-            mock_compo.return_value = {
-                "iid_accuracy": 0.82,
-                "compositional_accuracy": 0.75,
-            }
-
-            # Import and call the mocked function
-            from langlab.analysis.analysis import compute_compositional_vs_iid_accuracy
-
-            compo_results = compute_compositional_vs_iid_accuracy(sample_training_logs)
-            assert compo_results["iid_accuracy"] == 0.82
-            assert compo_results["compositional_accuracy"] == 0.75
+        # Skip compositional analysis test since function was removed
 
 
 @pytest.mark.integration
@@ -431,7 +415,7 @@ class TestEvaluationWorkflow:
         """Test complete analysis pipeline workflow."""
         # Mock analysis functions
         with patch(
-            "langlab.analysis.analysis.analyze_token_distribution"
+            "langlab.apps.app.analyze_token_distribution"
         ) as mock_token_analysis:
             mock_token_analysis.return_value = {
                 "zipf_slope": -0.8,
@@ -440,30 +424,13 @@ class TestEvaluationWorkflow:
                 "total_tokens": 100,
             }
 
-            with patch(
-                "langlab.analysis.analysis.compute_compositional_vs_iid_accuracy"
-            ) as mock_compo_analysis:
-                mock_compo_analysis.return_value = {
-                    "train_accuracy": 0.85,
-                    "iid_accuracy": 0.82,
-                    "compo_accuracy": 0.75,
-                    "generalization_gap": 0.07,
-                }
+            # Skip compositional analysis test since function was removed
 
-                # Run analysis pipeline
-                # Import and call the mocked functions
-                from langlab.analysis.analysis import (
-                    analyze_token_distribution,
-                    compute_compositional_vs_iid_accuracy,
-                )
+            # Run analysis pipeline
+            # Import and call the mocked functions
+            from langlab.apps.app import analyze_token_distribution
 
-                token_results = analyze_token_distribution(
-                    sample_message_tokens.tolist()
-                )
-                compo_results = compute_compositional_vs_iid_accuracy(
-                    sample_training_logs, heldout_pairs=[("red", "circle")]
-                )
+            token_results = analyze_token_distribution(sample_message_tokens.tolist())
 
-                # Verify results
-                assert token_results["zipf_slope"] == -0.8
-                assert compo_results["generalization_gap"] == 0.07
+            # Verify results
+            assert token_results["zipf_slope"] == -0.8

@@ -271,10 +271,13 @@ def compute_zipf_slope_from_checkpoint(
     config = checkpoint["config"]
 
     # Create speaker based on the model type used in training
-    if hasattr(config, "use_contrastive") and config.use_contrastive:
-        from ..core.contrastive_agents import ContrastiveSpeaker
+    from typing import Union
+    from ..core.contrastive_agents import ContrastiveSpeaker
 
-        speaker = ContrastiveSpeaker(config).to(device)
+    if hasattr(config, "use_contrastive") and config.use_contrastive:
+        speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker] = ContrastiveSpeaker(
+            config
+        ).to(device)
     elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
         speaker = SpeakerSeq(config).to(device)
     else:

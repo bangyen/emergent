@@ -109,29 +109,23 @@ class TestAppFunctions:
 
         assert callable(create_entropy_plot)
 
-    def test_create_message_length_plot_function_exists(self) -> None:
-        """Test that create_message_length_plot function exists."""
-        from langlab.apps.app import create_message_length_plot
-
-        assert callable(create_message_length_plot)
-
     def test_create_zipf_plot_function_exists(self) -> None:
         """Test that create_zipf_plot function exists."""
         from langlab.apps.app import create_zipf_plot
 
         assert callable(create_zipf_plot)
 
-    def test_create_compositional_vs_iid_plot_function_exists(self) -> None:
-        """Test that create_compositional_vs_iid_plot function exists."""
-        from langlab.apps.app import create_compositional_vs_iid_plot
+    def test_analyze_token_distribution_function_exists(self) -> None:
+        """Test that analyze_token_distribution function exists."""
+        from langlab.apps.app import analyze_token_distribution
 
-        assert callable(create_compositional_vs_iid_plot)
+        assert callable(analyze_token_distribution)
 
-    def test_interactive_probe_function_exists(self) -> None:
-        """Test that interactive_probe function exists."""
-        from langlab.apps.app import interactive_probe
+    def test_compute_zipf_slope_function_exists(self) -> None:
+        """Test that compute_zipf_slope function exists."""
+        from langlab.apps.app import compute_zipf_slope
 
-        assert callable(interactive_probe)
+        assert callable(compute_zipf_slope)
 
 
 class TestAppIntegration:
@@ -158,10 +152,9 @@ class TestAppIntegration:
             "load_checkpoint",
             "create_accuracy_plot",
             "create_entropy_plot",
-            "create_message_length_plot",
             "create_zipf_plot",
-            "create_compositional_vs_iid_plot",
-            "interactive_probe",
+            "analyze_token_distribution",
+            "compute_zipf_slope",
         ]
 
         for func_name in expected_functions:
@@ -176,8 +169,7 @@ class TestAppIntegration:
         from langlab.apps.app import (
             create_accuracy_plot,
             create_entropy_plot,
-            create_message_length_plot,
-            create_compositional_vs_iid_plot,
+            create_zipf_plot,
         )
 
         empty_df = pd.DataFrame()
@@ -186,8 +178,7 @@ class TestAppIntegration:
         try:
             create_accuracy_plot(empty_df)
             create_entropy_plot(empty_df)
-            create_message_length_plot(empty_df)
-            create_compositional_vs_iid_plot(empty_df)
+            create_zipf_plot([])  # Empty token list
         except Exception as e:
             pytest.fail(f"Functions should handle empty data gracefully: {e}")
 
@@ -197,7 +188,6 @@ class TestAppIntegration:
         from langlab.apps.app import (
             create_accuracy_plot,
             create_entropy_plot,
-            create_compositional_vs_iid_plot,
         )
 
         # DataFrame with wrong columns
@@ -209,7 +199,6 @@ class TestAppIntegration:
         try:
             create_accuracy_plot(wrong_df)
             create_entropy_plot(wrong_df)
-            create_compositional_vs_iid_plot(wrong_df)
         except Exception as e:
             pytest.fail(f"Functions should handle missing columns gracefully: {e}")
 

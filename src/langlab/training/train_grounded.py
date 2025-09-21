@@ -407,7 +407,7 @@ def train_grounded(
             writer = csv.writer(f)
             writer.writerow(
                 [
-                    episode,
+                    episode,  # Use 'episode' for grid training (different from 'step' in regular training)
                     metrics["total_loss"],
                     metrics["speaker_loss"],
                     metrics["listener_loss"],

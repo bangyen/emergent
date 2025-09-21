@@ -518,16 +518,20 @@ class PopulationManager:
                 ["step", "pair_id", "old_age", "parent_pair_id", "replacement_noise"]
             )
 
-            for replacement in self.replacement_log:
-                writer.writerow(
-                    [
-                        replacement["step"],
-                        replacement["pair_id"],
-                        replacement["old_age"],
-                        replacement["parent_pair_id"],
-                        replacement["replacement_noise"],
-                    ]
-                )
+            if self.replacement_log:
+                for replacement in self.replacement_log:
+                    writer.writerow(
+                        [
+                            replacement["step"],
+                            replacement["pair_id"],
+                            replacement["old_age"],
+                            replacement["parent_pair_id"],
+                            replacement["replacement_noise"],
+                        ]
+                    )
+            else:
+                # Add a placeholder row if no replacements occurred
+                writer.writerow([0, 0, 0, 0, 0.0])
 
         logger.info(f"Saved population logs to {population_log_file}")
         logger.info(f"Saved replacement logs to {replacement_log_file}")

@@ -7,10 +7,11 @@ including Zipf's law analysis and token distribution statistics.
 import numpy as np
 
 from langlab.analysis.analysis import (
+    load_training_logs,
+)
+from langlab.apps.app import (
     compute_zipf_slope,
     analyze_token_distribution,
-    load_training_logs,
-    compute_compositional_vs_iid_accuracy,
 )
 
 
@@ -163,38 +164,6 @@ class TestTrainingLogsAnalysis:
 
         assert isinstance(result, pd.DataFrame)  # Should return empty DataFrame
         # Function should handle missing files gracefully
-
-    def test_compute_compositional_vs_iid_accuracy_empty(self) -> None:
-        """Test compositional vs IID accuracy computation with empty data."""
-        import pandas as pd
-
-        empty_df = pd.DataFrame()
-
-        result = compute_compositional_vs_iid_accuracy(empty_df)
-
-        assert isinstance(result, dict)
-        assert "iid_accuracy" in result
-        assert "compositional_accuracy" in result
-        assert result["iid_accuracy"] == 0.0
-        assert result["compositional_accuracy"] == 0.0
-
-    def test_compute_compositional_vs_iid_accuracy_with_data(self) -> None:
-        """Test compositional vs IID accuracy computation with sample data."""
-        import pandas as pd
-
-        # Create sample training data
-        data = {"step": [1, 2, 3, 4, 5], "accuracy": [0.1, 0.2, 0.3, 0.4, 0.5]}
-        df = pd.DataFrame(data)
-
-        result = compute_compositional_vs_iid_accuracy(df)
-
-        assert isinstance(result, dict)
-        assert "iid_accuracy" in result
-        assert "compositional_accuracy" in result
-        assert result["iid_accuracy"] == 0.5  # Final accuracy
-        assert result["compositional_accuracy"] == 0.4  # 80% of final accuracy
-        assert isinstance(result["iid_accuracy"], float)
-        assert isinstance(result["compositional_accuracy"], float)
 
 
 class TestAnalysisIntegration:

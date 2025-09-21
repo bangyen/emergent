@@ -14,11 +14,10 @@ import os
 import torch
 
 from langlab.analysis.analysis import (
-    analyze_token_distribution,
     load_training_logs,
-    compute_compositional_vs_iid_accuracy,
 )
-from langlab.data.world import sample_scene, COLORS, SHAPES, SIZES
+from collections import Counter
+from typing import Tuple
 
 
 def load_checkpoint(checkpoint_path: str) -> Optional[Dict[str, Any]]:
@@ -50,8 +49,14 @@ def create_accuracy_plot(logs_df: pd.DataFrame) -> None:
         st.warning("No accuracy data available")
         return
 
+    # Handle different column names for step/episode
+    step_col = "step" if "step" in logs_df.columns else "episode"
+    if step_col not in logs_df.columns:
+        st.warning("No step/episode column found")
+        return
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(logs_df["step"], logs_df["accuracy"], "b-", linewidth=2)
+    ax.plot(logs_df[step_col], logs_df["accuracy"], "b-", linewidth=2)
     ax.set_xlabel("Training Step")
     ax.set_ylabel("Accuracy")
     ax.set_title("Training Accuracy Over Time")
@@ -60,7 +65,7 @@ def create_accuracy_plot(logs_df: pd.DataFrame) -> None:
     # Add baseline if available
     if "baseline" in logs_df.columns:
         ax.plot(
-            logs_df["step"], logs_df["baseline"], "r--", alpha=0.7, label="Baseline"
+            logs_df[step_col], logs_df["baseline"], "r--", alpha=0.7, label="Baseline"
         )
         ax.legend()
 
@@ -81,11 +86,17 @@ def create_entropy_plot(logs_df: pd.DataFrame) -> None:
     # For now, we'll compute entropy from loss data
     # In a full implementation, this would come from the logs
     if "speaker_loss" in logs_df.columns:
+        # Handle different column names for step/episode
+        step_col = "step" if "step" in logs_df.columns else "episode"
+        if step_col not in logs_df.columns:
+            st.warning("No step/episode column found")
+            return
+
         # Approximate entropy from speaker loss (higher loss = higher entropy)
         entropy_approx = logs_df["speaker_loss"].rolling(window=10).mean()
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(logs_df["step"], entropy_approx, "g-", linewidth=2)
+        ax.plot(logs_df[step_col], entropy_approx, "g-", linewidth=2)
         ax.set_xlabel("Training Step")
         ax.set_ylabel("Approximate Entropy")
         ax.set_title("Message Entropy Over Time")
@@ -97,8 +108,8 @@ def create_entropy_plot(logs_df: pd.DataFrame) -> None:
         st.warning("No entropy data available")
 
 
-def create_message_length_plot(logs_df: pd.DataFrame) -> None:
-    """Create message length over time plot.
+def create_loss_plot(logs_df: pd.DataFrame) -> None:
+    """Create training loss over time plot.
 
     Args:
         logs_df: DataFrame containing training metrics.
@@ -107,49 +118,63 @@ def create_message_length_plot(logs_df: pd.DataFrame) -> None:
         st.warning("No training data available")
         return
 
-    # Check if message length data is available
-    if "avg_message_length" not in logs_df.columns:
-        st.info("Message length analysis requires additional logging data")
+    # Check if loss data is available
+    if "total_loss" not in logs_df.columns:
+        st.info("Loss analysis requires additional logging data")
         return
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Plot average message length over time
+    # Handle different column names for step/episode
+    step_col = "step" if "step" in logs_df.columns else "episode"
+    if step_col not in logs_df.columns:
+        st.warning("No step/episode column found")
+        return
+
+    # Plot total loss over time
     ax.plot(
-        logs_df["step"],
-        logs_df["avg_message_length"],
-        "purple",
+        logs_df[step_col],
+        logs_df["total_loss"],
+        "red",
         linewidth=2,
-        label="Average Message Length",
+        label="Total Loss",
     )
 
-    # If we have std data, show it as error bars
-    if (
-        "message_length_std" in logs_df.columns
-        and logs_df["message_length_std"].sum() > 0
-    ):
-        ax.fill_between(
-            logs_df["step"],
-            logs_df["avg_message_length"] - logs_df["message_length_std"],
-            logs_df["avg_message_length"] + logs_df["message_length_std"],
-            alpha=0.3,
-            color="purple",
-            label="±1 std",
+    # Plot individual losses if available
+    if "speaker_loss" in logs_df.columns:
+        ax.plot(
+            logs_df[step_col],
+            logs_df["speaker_loss"],
+            "blue",
+            linewidth=1,
+            alpha=0.7,
+            label="Speaker Loss",
+        )
+
+    if "listener_loss" in logs_df.columns:
+        ax.plot(
+            logs_df[step_col],
+            logs_df["listener_loss"],
+            "green",
+            linewidth=1,
+            alpha=0.7,
+            label="Listener Loss",
         )
 
     ax.set_xlabel("Training Step")
-    ax.set_ylabel("Message Length")
-    ax.set_title("Message Length Over Time")
+    ax.set_ylabel("Loss")
+    ax.set_title("Training Loss Over Time")
     ax.grid(True, alpha=0.3)
     ax.legend()
 
     # Add some statistics
-    final_length = logs_df["avg_message_length"].iloc[-1]
+    final_loss = logs_df["total_loss"].iloc[-1]
+    min_loss = logs_df["total_loss"].min()
     ax.text(
         0.02,
         0.98,
-        f"Final Length: {final_length:.2f}",
+        f"Final Loss: {final_loss:.4f}\nMin Loss: {min_loss:.4f}",
         transform=ax.transAxes,
         verticalalignment="top",
         bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
@@ -173,8 +198,6 @@ def create_zipf_plot(tokens: List[int]) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Get frequency data
-    from collections import Counter
-
     token_counts = Counter(tokens)
     sorted_counts = sorted(token_counts.values(), reverse=True)
     frequencies = np.array(sorted_counts)
@@ -205,179 +228,104 @@ def create_zipf_plot(tokens: List[int]) -> None:
     plt.close()
 
 
-def create_compositional_vs_iid_plot(logs_df: pd.DataFrame) -> None:
-    """Create compositional vs IID accuracy comparison plot.
+def analyze_token_distribution(tokens: List[int]) -> Dict[str, Any]:
+    """Analyze token distribution statistics.
+
+    This function provides comprehensive analysis of token usage patterns
+    including Zipf's law compliance, vocabulary diversity, and frequency
+    distribution characteristics.
 
     Args:
-        logs_df: DataFrame containing training metrics.
+        tokens: List of token IDs to analyze.
+
+    Returns:
+        Dictionary containing analysis results including Zipf slope,
+        vocabulary size, frequency statistics, and distribution metrics.
     """
-    if logs_df.empty:
-        st.warning("No training data available")
-        return
+    if not tokens:
+        return {
+            "zipf_slope": 0.0,
+            "vocab_size": 0,
+            "total_tokens": 0,
+            "unique_tokens": 0,
+            "frequencies": np.array([]),
+            "entropy": 0.0,
+            "gini_coefficient": 0.0,
+        }
 
-    # Compute accuracies
-    accuracies = compute_compositional_vs_iid_accuracy(logs_df)
+    # Basic statistics
+    token_counts = Counter(tokens)
+    vocab_size = len(token_counts)
+    total_tokens = len(tokens)
+    unique_tokens = len(set(tokens))
 
-    # Create bar plot
-    fig, ax = plt.subplots(figsize=(8, 6))
-    categories = ["IID Accuracy", "Compositional Accuracy"]
-    values = [accuracies["iid_accuracy"], accuracies["compositional_accuracy"]]
+    # Zipf analysis
+    zipf_slope, frequencies = compute_zipf_slope(tokens)
 
-    bars = ax.bar(categories, values, color=["skyblue", "lightcoral"])
-    ax.set_ylabel("Accuracy")
-    ax.set_title("Compositional vs IID Accuracy")
-    ax.set_ylim(0, 1)
+    # Entropy calculation
+    probs = np.array(list(token_counts.values())) / total_tokens
+    entropy: float = -np.sum(
+        probs * np.log(probs + 1e-10)
+    )  # Add small epsilon to avoid log(0)
 
-    # Add value labels on bars
-    for bar, value in zip(bars, values):
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height + 0.01,
-            f"{value:.3f}",
-            ha="center",
-            va="bottom",
-        )
+    # Gini coefficient (measure of inequality)
+    sorted_freqs = np.sort(frequencies)
+    n = len(sorted_freqs)
+    cumsum = np.cumsum(sorted_freqs)
+    gini_coefficient = (
+        (n + 1 - 2 * np.sum(cumsum) / cumsum[-1]) / n if cumsum[-1] > 0 else 0.0
+    )
 
-    st.pyplot(fig)
-    plt.close()
+    return {
+        "zipf_slope": zipf_slope,
+        "vocab_size": vocab_size,
+        "total_tokens": total_tokens,
+        "unique_tokens": unique_tokens,
+        "frequencies": frequencies,
+        "entropy": float(entropy),
+        "gini_coefficient": float(gini_coefficient),
+    }
 
 
-def interactive_probe(logs_df: pd.DataFrame) -> None:
-    """Interactive probe for examining agent behavior.
+def compute_zipf_slope(tokens: List[int]) -> Tuple[float, np.ndarray]:
+    """Compute Zipf's law slope by fitting a line in log-log space.
+
+    This function analyzes token frequency distributions to determine
+    how well they follow Zipf's law, which predicts that frequency
+    is inversely proportional to rank.
 
     Args:
-        logs_df: DataFrame containing training metrics.
+        tokens: List of token IDs to analyze.
+
+    Returns:
+        Tuple of (slope, frequencies) where slope is the fitted line slope
+        in log-log space and frequencies is the sorted frequency array.
     """
-    st.subheader("Interactive Agent Probe")
+    if not tokens:
+        return 0.0, np.array([])
 
-    # Checkpoint selection
-    checkpoint_dir = "outputs/checkpoints"
-    if os.path.exists(checkpoint_dir):
-        checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pt")]
-        if checkpoint_files:
-            selected_checkpoint = st.selectbox(
-                "Select Model Checkpoint", checkpoint_files
-            )
-            checkpoint_path = os.path.join(checkpoint_dir, selected_checkpoint)
-        else:
-            st.warning("No checkpoint files found")
-            checkpoint_path = None
-    else:
-        st.warning("Checkpoint directory not found")
-        checkpoint_path = None
+    # Count token frequencies
+    token_counts = Counter(tokens)
 
-    # Object selection (for future use - currently using random scenes)
-    col1, col2, col3 = st.columns(3)
+    # Sort by frequency (descending)
+    sorted_counts = sorted(token_counts.values(), reverse=True)
+    frequencies = np.array(sorted_counts)
 
-    with col1:
-        st.selectbox("Color", COLORS)
+    if len(frequencies) < 2:
+        return 0.0, frequencies
 
-    with col2:
-        st.selectbox("Shape", SHAPES)
+    # Create rank array (1-indexed)
+    ranks = np.arange(1, len(frequencies) + 1)
 
-    with col3:
-        st.selectbox("Size", SIZES)
+    # Convert to log space
+    log_ranks = np.log(ranks)
+    log_frequencies = np.log(frequencies)
 
-    # Generate scene
-    if st.button("Generate Scene"):
-        scene_objects, target_idx = sample_scene(k=5, seed=42)
+    # Fit linear regression in log-log space
+    # log(frequency) = slope * log(rank) + intercept
+    slope, intercept = np.polyfit(log_ranks, log_frequencies, 1)
 
-        st.write("**Scene Objects:**")
-        for i, obj in enumerate(scene_objects):
-            marker = " (TARGET)" if i == target_idx else ""
-            st.write(f"{i}: {obj['color']} {obj['size']} {obj['shape']}{marker}")
-
-        # Load model and generate predictions if checkpoint is available
-        if checkpoint_path and os.path.exists(checkpoint_path):
-            try:
-                # Load checkpoint
-                checkpoint = load_checkpoint(checkpoint_path)
-                if checkpoint is None:
-                    st.error("Failed to load checkpoint")
-                    return
-
-                # Extract model configurations from checkpoint
-                comm_config = checkpoint.get("config")
-                if comm_config is None:
-                    st.error("No configuration found in checkpoint")
-                    return
-
-                # Create models (we'll use the basic Speaker/Listener for now)
-                from langlab.core.agents import Speaker, Listener
-
-                # Create models
-                speaker = Speaker(comm_config)
-                listener = Listener(comm_config)
-
-                # Load model states
-                speaker.load_state_dict(checkpoint["speaker_state_dict"])
-                listener.load_state_dict(checkpoint["listener_state_dict"])
-
-                speaker.eval()
-                listener.eval()
-
-                # Convert scene to tensor format
-                from langlab.data.world import encode_object
-                import torch
-
-                # Encode all objects in the scene
-                encoded_objects = []
-                for obj in scene_objects:
-                    encoded_obj = encode_object(obj)
-                    encoded_objects.append(encoded_obj)
-
-                scene_tensor = torch.stack(encoded_objects).unsqueeze(
-                    0
-                )  # Add batch dimension
-                target_object = scene_tensor[0, target_idx].unsqueeze(
-                    0
-                )  # Target object
-
-                # Generate message
-                with torch.no_grad():
-                    speaker_logits, message_tokens, _, _ = speaker(target_object)
-
-                    # Convert message tokens to readable format
-                    message_str = " ".join(
-                        [str(token.item()) for token in message_tokens[0]]
-                    )
-
-                    st.write(f"**Generated Message:** `{message_str}`")
-
-                    # Listener prediction
-                    listener_logits = listener(message_tokens, scene_tensor)
-                    predicted_idx = torch.argmax(listener_logits, dim=1).item()
-
-                    # Display results
-                    st.write("**Listener Prediction:**")
-                    if predicted_idx == target_idx:
-                        st.success(f"✅ Correct! Predicted object {predicted_idx}")
-                    else:
-                        st.error(
-                            f"❌ Incorrect! Predicted object {predicted_idx}, actual target was {target_idx}"
-                        )
-
-                    # Show prediction probabilities
-                    probs = torch.softmax(listener_logits, dim=1)[0]
-                    st.write("**Prediction Probabilities:**")
-                    for i, prob in enumerate(probs):
-                        marker = (
-                            " ← PREDICTED"
-                            if i == predicted_idx
-                            else " ← TARGET" if i == target_idx else ""
-                        )
-                        st.write(f"Object {i}: {prob.item():.3f}{marker}")
-
-            except Exception as e:
-                st.error(f"Error loading model or generating predictions: {e}")
-                st.info(
-                    "This might be due to model architecture differences. Try a different checkpoint."
-                )
-        else:
-            st.info(
-                "Select a checkpoint to enable message generation and listener prediction"
-            )
+    return float(slope), frequencies
 
 
 def main() -> None:
@@ -433,12 +381,10 @@ def main() -> None:
     # Main dashboard content
     if not logs_df.empty:
         # Create tabs for different visualizations
-        tab1, tab2, tab3, tab4 = st.tabs(
+        tab1, tab2 = st.tabs(
             [
                 "Training Metrics",
                 "Language Analysis",
-                "Compositionality",
-                "Interactive Probe",
             ]
         )
 
@@ -455,53 +401,155 @@ def main() -> None:
                 st.subheader("Entropy Over Time")
                 create_entropy_plot(logs_df)
 
-            st.subheader("Message Length Over Time")
-            create_message_length_plot(logs_df)
+            st.subheader("Training Loss Over Time")
+            create_loss_plot(logs_df)
 
         with tab2:
             st.header("Language Analysis")
 
-            # Generate sample tokens for Zipf analysis
-            # In a real implementation, this would come from actual message logs
-            st.subheader("Zipf Rank-Frequency Analysis")
+            # Check if we have message logs available
+            message_logs_path = "outputs/logs/message_logs.csv"
+            if os.path.exists(message_logs_path):
+                try:
+                    # Load message logs
+                    message_logs_df = pd.read_csv(message_logs_path)
 
-            # Create sample token data for demonstration
-            np.random.seed(42)
-            vocab_size = 10
-            n_tokens = 1000
+                    if not message_logs_df.empty:
+                        st.subheader("Zipf Rank-Frequency Analysis")
 
-            # Generate tokens following a Zipf-like distribution
-            ranks = np.arange(1, vocab_size + 1)
-            frequencies = 1.0 / ranks  # Perfect Zipf distribution
-            probs = frequencies / np.sum(frequencies)
+                        # Extract all message tokens
+                        all_tokens = []
+                        for _, row in message_logs_df.iterrows():
+                            # Parse message tokens (assuming they're stored as space-separated strings)
+                            if "message_tokens" in row and pd.notna(
+                                row["message_tokens"]
+                            ):
+                                tokens = [
+                                    int(x) for x in str(row["message_tokens"]).split()
+                                ]
+                                all_tokens.extend(tokens)
 
-            sample_tokens = np.random.choice(vocab_size, size=n_tokens, p=probs)
+                        if all_tokens:
+                            # Create Zipf plot
+                            create_zipf_plot(all_tokens)
 
-            # Analyze and display results
-            analysis = analyze_token_distribution(sample_tokens.tolist())
+                            # Display analysis statistics
+                            st.subheader("Analysis Statistics")
+                            analysis = analyze_token_distribution(all_tokens)
 
-            col1, col2 = st.columns(2)
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Zipf Slope", f"{analysis['zipf_slope']:.3f}")
+                                st.metric("Vocabulary Size", analysis["vocab_size"])
+                                st.metric("Entropy", f"{analysis['entropy']:.3f}")
 
-            with col1:
-                st.metric("Zipf Slope", f"{analysis['zipf_slope']:.3f}")
-                st.metric("Vocabulary Size", analysis["vocab_size"])
-                st.metric("Entropy", f"{analysis['entropy']:.3f}")
+                            with col2:
+                                st.metric("Total Tokens", analysis["total_tokens"])
+                                st.metric("Unique Tokens", analysis["unique_tokens"])
+                                st.metric(
+                                    "Gini Coefficient",
+                                    f"{analysis['gini_coefficient']:.3f}",
+                                )
+                        else:
+                            st.warning("No message tokens found in logs")
+                    else:
+                        st.warning("Message logs file is empty")
 
-            with col2:
-                st.metric("Total Tokens", analysis["total_tokens"])
-                st.metric("Unique Tokens", analysis["unique_tokens"])
-                st.metric("Gini Coefficient", f"{analysis['gini_coefficient']:.3f}")
+                except Exception as e:
+                    st.error(f"Error loading message logs: {e}")
+                    st.info("Message logs may not be in the expected format")
+            else:
+                st.info(
+                    """
+                **Message logs not found**
+                
+                To enable language analysis, the training pipeline needs to be modified to save message tokens.
+                Currently, only aggregate metrics are saved during training.
+                
+                **To enable this feature:**
+                1. Modify the training code to save message tokens to `outputs/logs/message_logs.csv`
+                2. The message logs should contain columns: `step`, `message_tokens`
+                3. Message tokens should be stored as space-separated integers
+                """
+                )
 
-            # Create Zipf plot
-            create_zipf_plot(sample_tokens.tolist())
+                # Show placeholder analysis
+                st.subheader("Message Length Analysis (Available)")
+                if "avg_message_length" in logs_df.columns:
+                    # Create message length plot
+                    fig, ax = plt.subplots(figsize=(10, 6))
 
-        with tab3:
-            st.header("Compositionality Analysis")
-            create_compositional_vs_iid_plot(logs_df)
+                    step_col = "step" if "step" in logs_df.columns else "episode"
+                    if step_col in logs_df.columns:
+                        ax.plot(
+                            logs_df[step_col],
+                            logs_df["avg_message_length"],
+                            "b-",
+                            linewidth=2,
+                            label="Average Message Length",
+                        )
+                        if "message_length_std" in logs_df.columns:
+                            ax.fill_between(
+                                logs_df[step_col],
+                                logs_df["avg_message_length"]
+                                - logs_df["message_length_std"],
+                                logs_df["avg_message_length"]
+                                + logs_df["message_length_std"],
+                                alpha=0.3,
+                                color="blue",
+                                label="±1 Std Dev",
+                            )
 
-        with tab4:
-            st.header("Interactive Agent Probe")
-            interactive_probe(logs_df)
+                        ax.set_xlabel("Training Step")
+                        ax.set_ylabel("Message Length")
+                        ax.set_title("Message Length Evolution During Training")
+                        ax.grid(True, alpha=0.3)
+                        ax.legend()
+
+                        st.pyplot(fig)
+                        plt.close()
+
+                        # Display message length statistics
+                        st.subheader("Message Length Statistics")
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.metric(
+                                "Final Avg Length",
+                                f"{logs_df['avg_message_length'].iloc[-1]:.2f}",
+                            )
+                            st.metric(
+                                "Min Length",
+                                f"{logs_df['avg_message_length'].min():.2f}",
+                            )
+                            st.metric(
+                                "Max Length",
+                                f"{logs_df['avg_message_length'].max():.2f}",
+                            )
+
+                        with col2:
+                            st.metric(
+                                "Length Trend",
+                                (
+                                    "Increasing"
+                                    if logs_df["avg_message_length"].iloc[-1]
+                                    > logs_df["avg_message_length"].iloc[0]
+                                    else "Decreasing"
+                                ),
+                            )
+                            st.metric(
+                                "Length Stability",
+                                (
+                                    f"{logs_df['message_length_std'].mean():.2f}"
+                                    if "message_length_std" in logs_df.columns
+                                    else "N/A"
+                                ),
+                            )
+                            st.metric("Training Steps", len(logs_df))
+                    else:
+                        st.warning("No step/episode column found in training data")
+                else:
+                    st.warning("No message length data available in training logs")
 
     else:
         st.info(
