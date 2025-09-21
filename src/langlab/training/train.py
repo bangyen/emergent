@@ -717,10 +717,15 @@ def train_step(
                 ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
 
     # Update learning rate schedulers after optimizer steps
-    if speaker_scheduler is not None:
-        speaker_scheduler.step()
-    if listener_scheduler is not None:
-        listener_scheduler.step()
+    # Suppress SequentialLR deprecation warning for epoch parameter
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*epoch parameter.*deprecated.*")
+        if speaker_scheduler is not None:
+            speaker_scheduler.step()
+        if listener_scheduler is not None:
+            listener_scheduler.step()
 
     # Update warmup schedulers if enabled
     if use_warmup and has_warmup and step <= warmup_steps:
@@ -850,34 +855,39 @@ def train(
     if use_warmup:
         warmup_steps = min(500, n_steps // 10)
         # Create combined scheduler with warmup + cosine annealing
-        speaker_scheduler = torch.optim.lr_scheduler.SequentialLR(
-            speaker_optimizer,
-            schedulers=[
-                torch.optim.lr_scheduler.LinearLR(
-                    speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
-                ),
-                torch.optim.lr_scheduler.CosineAnnealingLR(
-                    speaker_optimizer,
-                    T_max=n_steps - warmup_steps,
-                    eta_min=learning_rate * 0.01,
-                ),
-            ],
-            milestones=[warmup_steps],
-        )
-        listener_scheduler = torch.optim.lr_scheduler.SequentialLR(
-            listener_optimizer,
-            schedulers=[
-                torch.optim.lr_scheduler.LinearLR(
-                    listener_optimizer, start_factor=0.1, total_iters=warmup_steps
-                ),
-                torch.optim.lr_scheduler.CosineAnnealingLR(
-                    listener_optimizer,
-                    T_max=n_steps - warmup_steps,
-                    eta_min=learning_rate * 0.01,
-                ),
-            ],
-            milestones=[warmup_steps],
-        )
+        # Suppress SequentialLR deprecation warning for epoch parameter
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*epoch parameter.*deprecated.*")
+            speaker_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                speaker_optimizer,
+                schedulers=[
+                    torch.optim.lr_scheduler.LinearLR(
+                        speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
+                    ),
+                    torch.optim.lr_scheduler.CosineAnnealingLR(
+                        speaker_optimizer,
+                        T_max=n_steps - warmup_steps,
+                        eta_min=learning_rate * 0.01,
+                    ),
+                ],
+                milestones=[warmup_steps],
+            )
+            listener_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                listener_optimizer,
+                schedulers=[
+                    torch.optim.lr_scheduler.LinearLR(
+                        listener_optimizer, start_factor=0.1, total_iters=warmup_steps
+                    ),
+                    torch.optim.lr_scheduler.CosineAnnealingLR(
+                        listener_optimizer,
+                        T_max=n_steps - warmup_steps,
+                        eta_min=learning_rate * 0.01,
+                    ),
+                ],
+                milestones=[warmup_steps],
+            )
     else:
         speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
