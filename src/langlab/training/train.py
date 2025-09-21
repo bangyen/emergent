@@ -273,14 +273,14 @@ def mixup_loss(
     if alpha > 0:
         lam = torch.distributions.Beta(alpha, alpha).sample()
     else:
-        lam = 1
+        lam = torch.tensor(1.0)
 
     batch_size = inputs.size(0)
     index = torch.randperm(batch_size)
 
     mixed_inputs = lam * inputs + (1 - lam) * inputs[index, :]
     y_a, y_b = targets, targets[index]
-    return mixed_inputs, y_a, y_b, lam
+    return mixed_inputs, y_a, y_b, lam.item()
 
 
 def add_noise_augmentation(
@@ -889,10 +889,10 @@ def train(
     else:
         speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )
+        )  # type: ignore
         listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )
+        )  # type: ignore
 
     # Log warmup information
     if use_warmup:
@@ -957,7 +957,7 @@ def train(
                 k=k,
                 num_distractors=distractors,
                 seed=seed + 1,  # Different seed for validation
-            )
+            )  # type: ignore
             logger.info(
                 f"Using distractor dataset with {distractors} distractors per scene"
             )
@@ -973,20 +973,20 @@ def train(
                 curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
                 train_dataset = ReferentialGameDataset(
                     n_scenes=train_size, k=curriculum_k, seed=seed
-                )
+                )  # type: ignore
                 val_dataset = ReferentialGameDataset(
                     n_scenes=val_size, k=curriculum_k, seed=seed + 1
-                )
+                )  # type: ignore
                 logger.info(
                     f"Using curriculum learning: starting with k={curriculum_k}"
                 )
             else:
                 train_dataset = ReferentialGameDataset(
                     n_scenes=train_size, k=k, seed=seed
-                )
+                )  # type: ignore
                 val_dataset = ReferentialGameDataset(
                     n_scenes=val_size, k=k, seed=seed + 1
-                )
+                )  # type: ignore
                 logger.info(f"Using fixed difficulty: k={k}")
 
             logger.info(f"Training set size: {len(train_dataset)}")
