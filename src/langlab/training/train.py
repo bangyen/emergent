@@ -725,9 +725,9 @@ def train_step(
                 ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
 
     # Update learning rate schedulers after optimizer steps
-    if speaker_scheduler is not None and step > 1:
+    if speaker_scheduler is not None:
         speaker_scheduler.step()
-    if listener_scheduler is not None and step > 1:
+    if listener_scheduler is not None:
         listener_scheduler.step()
 
     # Update warmup schedulers if enabled
@@ -1064,11 +1064,7 @@ def train(
             warmup_steps if use_warmup else 0,
         )
 
-        # Update schedulers
-        if speaker_scheduler is not None:
-            speaker_scheduler.step()
-        if listener_scheduler is not None:
-            listener_scheduler.step()
+        # Schedulers are updated inside train_step function
 
         step += 1
 
