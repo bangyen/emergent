@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from scipy import stats
 
 from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq, PragmaticListener
+from ..core.contrastive_agents import ContrastiveSpeaker, ContrastiveListener
 from ..data.data import ReferentialGameDataset, CompositionalDataset
 from ..utils.utils import get_logger, get_device
 from ..data.world import sample_scene, sample_distractor_scene, encode_object
@@ -58,10 +59,28 @@ def evaluate(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
@@ -592,10 +611,28 @@ def _evaluate_with_seed(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
@@ -699,10 +736,28 @@ def evaluate_with_temperature_scaling(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
@@ -835,10 +890,28 @@ def evaluate_with_uncertainty_quantification(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
@@ -997,10 +1070,28 @@ def evaluate_with_confidence_metrics(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
@@ -1183,9 +1274,12 @@ def evaluate_ensemble_robustness(
         config = checkpoint["config"]
 
         # Create agents
+        speaker: Union[Speaker, SpeakerSeq]
+        listener: Union[Listener, ListenerSeq]
+
         if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-            speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-            listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+            speaker = SpeakerSeq(config).to(device)
+            listener = ListenerSeq(config).to(device)
         else:
             speaker = Speaker(config).to(device)
             listener = Listener(config).to(device)
@@ -1345,10 +1439,28 @@ def evaluate_with_bootstrap_confidence_intervals(
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
 
-    # Create agents
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
-        listener: Union[Listener, ListenerSeq] = ListenerSeq(config).to(device)
+    # Create agents based on checkpoint type
+    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
+    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+
+    # Check if checkpoint was saved with contrastive agents by looking at state dict keys
+    speaker_state_dict = checkpoint["speaker_state_dict"]
+    has_contrastive_keys = any(
+        "contrastive_head" in key or "message_generator" in key
+        for key in speaker_state_dict.keys()
+    )
+
+    # Prioritize config flags over key detection
+    if (
+        hasattr(config, "use_contrastive")
+        and config.use_contrastive
+        and has_contrastive_keys
+    ):
+        speaker = ContrastiveSpeaker(config).to(device)
+        listener = ContrastiveListener(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
+        listener = ListenerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)

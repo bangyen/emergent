@@ -31,6 +31,9 @@ class CommunicationConfig:
         use_attention: Whether to use attention mechanisms in Listener (default: True).
         use_residual: Whether to use residual connections (default: True).
         dropout_rate: Dropout rate for regularization (default: 0.1).
+        use_contrastive: Whether to use contrastive learning (default: True).
+        contrastive_temperature: Temperature parameter for contrastive learning (default: 0.07).
+        contrastive_weight: Weight for contrastive loss in total loss (default: 0.1).
     """
 
     vocabulary_size: int = 16
@@ -46,6 +49,9 @@ class CommunicationConfig:
     use_attention: bool = True
     use_residual: bool = True
     dropout_rate: float = 0.1
+    use_contrastive: bool = True
+    contrastive_temperature: float = 0.07
+    contrastive_weight: float = 0.1
 
     def __post_init__(self) -> None:
         """Validate configuration parameters after initialization."""
@@ -63,3 +69,7 @@ class CommunicationConfig:
             raise ValueError("distractors must be non-negative")
         if not 0.0 <= self.dropout_rate <= 1.0:
             raise ValueError("dropout_rate must be between 0.0 and 1.0")
+        if self.contrastive_temperature <= 0:
+            raise ValueError("contrastive_temperature must be positive")
+        if self.contrastive_weight < 0:
+            raise ValueError("contrastive_weight must be non-negative")
