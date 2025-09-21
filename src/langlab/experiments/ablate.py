@@ -8,7 +8,7 @@ and length cost on emergent language performance.
 import itertools
 import json
 import os
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import Dict, List, Tuple, Any, Optional
 import numpy as np
 import torch
 
@@ -271,8 +271,12 @@ def compute_zipf_slope_from_checkpoint(
     config = checkpoint["config"]
 
     # Create speaker based on the model type used in training
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker: Union[Speaker, SpeakerSeq] = SpeakerSeq(config).to(device)
+    if hasattr(config, "use_contrastive") and config.use_contrastive:
+        from ..core.contrastive_agents import ContrastiveSpeaker
+
+        speaker = ContrastiveSpeaker(config).to(device)
+    elif hasattr(config, "use_sequence_models") and config.use_sequence_models:
+        speaker = SpeakerSeq(config).to(device)
     else:
         speaker = Speaker(config).to(device)
 
@@ -296,12 +300,11 @@ def compute_zipf_slope_from_checkpoint(
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Generate messages
-            if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-                # SpeakerSeq returns (logits, token_ids)
-                _, message_tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
             else:
-                # Speaker returns (logits, token_ids, gesture_logits, gesture_tokens)
-                _, message_tokens, _, _ = speaker(target_objects)
+                _, message_tokens = speaker_output
             all_messages.append(message_tokens)
 
     # Concatenate all messages

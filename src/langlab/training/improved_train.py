@@ -331,7 +331,11 @@ def improved_train_step(
     if hasattr(speaker, "config") and speaker.config.use_sequence_models:
         speaker_logits, message_tokens = speaker(target_objects)
     else:
-        speaker_logits, message_tokens, _, _ = speaker(target_objects)
+        speaker_output = speaker(target_objects)
+        if len(speaker_output) == 4:
+            speaker_logits, message_tokens, _, _ = speaker_output
+        else:
+            speaker_logits, message_tokens = speaker_output
 
     # Listener makes predictions
     listener_probs = listener(message_tokens, candidate_objects)
@@ -556,7 +560,11 @@ def train_improved_model(config: TrainingConfig) -> Dict[str, Any]:
                     ):
                         _, val_messages = speaker(val_target_objects)
                     else:
-                        _, val_messages, _, _ = speaker(val_target_objects)
+                        speaker_output = speaker(val_target_objects)
+                        if len(speaker_output) == 4:
+                            _, val_messages, _, _ = speaker_output
+                        else:
+                            _, val_messages = speaker_output
 
                     # Get predictions
                     val_probs = listener(val_messages, val_candidates)

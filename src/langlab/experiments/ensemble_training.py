@@ -264,7 +264,11 @@ def evaluate_ensemble(
             target_indices = target_indices.to(device)
 
             # Generate messages using ensemble speaker
-            _, message_tokens, _, _ = ensemble_speaker(target_objects)
+            speaker_output = ensemble_speaker(target_objects)
+            if len(speaker_output) == 4:
+                _, message_tokens, _, _ = speaker_output
+            else:
+                _, message_tokens = speaker_output
 
             # Get predictions using ensemble listener
             probabilities = ensemble_listener(message_tokens, candidate_objects)
