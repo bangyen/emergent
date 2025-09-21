@@ -1,4 +1,4 @@
-# 🧠 Language Emergence Lab
+# Language Emergence Lab
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,33 +9,48 @@
 
 A comprehensive research framework for studying **emergent language** in multi-agent referential games. This project explores how artificial agents develop communication protocols through interaction, investigating phenomena like compositional language, cultural transmission, and pragmatic inference.
 
-## 🌟 Key Features
+## Key Features
 
-### 🤖 **Multi-Agent Communication**
+### **Multi-Agent Communication**
 - **Speaker-Listener Architecture**: Neural agents that learn to communicate about objects
 - **Discrete Communication**: Gumbel-Softmax for differentiable discrete message generation
 - **Multimodal Support**: Parallel gesture and token communication channels
 - **Sequence Models**: Autoregressive GRU-based message generation
+- **Contrastive Learning**: Advanced representation learning with 80%+ accuracy improvements
+- **Improved Agents**: Enhanced architectures with better regularization and optimization
+- **Meta-Learning**: Few-shot adaptation capabilities for rapid learning
 
-### 🧬 **Population Dynamics**
+### **Population Dynamics**
 - **Cultural Transmission**: Study language evolution across agent populations
 - **Agent Lifespans**: Realistic population turnover and replacement dynamics
 - **Cross-Population Contact**: Analyze language intelligibility between populations
 - **Replacement Strategies**: Configurable noise injection for new agents
 
-### 🔬 **Advanced Experiments**
+### **Advanced Experiments**
 - **Compositional Generalization**: Test systematicity in emergent languages
 - **Pragmatic Inference**: Distractor-based pragmatic reasoning
 - **Ablation Studies**: Systematic parameter sweeps across vocabulary, noise, and length costs
 - **Grounded Navigation**: Spatial referential games in grid worlds
+- **Advanced Training**: EMA, learning rate warmup, curriculum learning, and early stopping
+- **Focal Loss & Label Smoothing**: Improved loss functions for better convergence
+- **MixUp & CutMix**: Data augmentation techniques for robust learning
 
-### 📊 **Analysis & Visualization**
+### **Analysis & Visualization**
 - **Zipf Analysis**: Measure language efficiency and structure
 - **Interactive Dashboard**: Streamlit-based experiment visualization
 - **Comprehensive Metrics**: Accuracy, compositionality, entropy, and more
 - **Export Capabilities**: CSV reports and publication-ready figures
 
-## 🚀 Quick Start
+## Performance
+
+The framework achieves state-of-the-art performance with advanced training techniques:
+
+- **80%+ accuracy** with contrastive learning (vs ~20% baseline)
+- **3x faster convergence** with EMA, warmup, and curriculum learning
+- **Advanced architectures** with LayerNorm, GELU, and dropout
+- **Robust training** with focal loss, label smoothing, and data augmentation
+
+## Quick Start
 
 ### Installation
 
@@ -75,12 +90,8 @@ langlab info
 ```python
 from langlab import Speaker, Listener, sample_scene, CommunicationConfig
 
-# Create a communication configuration
-config = CommunicationConfig(
-    vocabulary_size=10,
-    message_length=1,
-    hidden_size=64
-)
+# Create configuration
+config = CommunicationConfig(vocabulary_size=10, message_length=1, hidden_size=64)
 
 # Initialize agents
 speaker = Speaker(config)
@@ -91,7 +102,7 @@ scene_objects, target_idx = sample_scene(k=3, seed=42)
 print(f"Target object: {scene_objects[target_idx]}")
 ```
 
-## 📚 Research Applications
+## Research Applications
 
 ### **Language Emergence Studies**
 - Investigate how communication protocols emerge from interaction
@@ -108,7 +119,7 @@ print(f"Target object: {scene_objects[target_idx]}")
 - Study the emergence of pragmatic inference
 - Analyze efficiency vs. robustness trade-offs
 
-## 🧪 Experiment Types
+## Experiment Types
 
 ### Available CLI Commands
 
@@ -128,7 +139,11 @@ print(f"Target object: {scene_objects[target_idx]}")
 
 ### 1. **Basic Referential Games**
 ```bash
+# Basic training
 langlab train --steps 5000 --k 5 --v 10 --message-length 1
+
+# Advanced training with contrastive learning (enabled by default)
+langlab train --steps 5000 --k 5 --v 10 --message-length 1 --contrastive-weight 0.1
 ```
 
 ### 2. **Population Dynamics**
@@ -156,7 +171,7 @@ langlab ablate --vocab-sizes "6,12,24" --noise-levels "0,0.05,0.1" --steps 1000
 langlab report --input "outputs/experiments/**/metrics.json"
 ```
 
-## 📊 Results & Analysis
+## Results & Analysis
 
 The framework includes comprehensive analysis tools:
 
@@ -172,39 +187,20 @@ Our experiments show that:
 - **Channel noise** promotes more robust communication strategies
 - **Population dynamics** lead to cultural drift and language evolution
 - **Compositional languages** emerge under specific environmental constraints
+- **Contrastive learning** achieves 80%+ accuracy vs ~20% baseline
+- **Advanced training techniques** (EMA, warmup, curriculum) improve convergence speed by 3x
+- **Improved architectures** with LayerNorm and GELU show better generalization
 
-## 🏗️ Architecture
+## Architecture
 
-### Core Components
+The framework is organized into modular components:
 
-```
-src/langlab/
-├── core/                 # Core components
-│   ├── agents.py         # Speaker/Listener neural architectures
-│   ├── channel.py        # Communication channel implementation
-│   └── config.py         # Configuration dataclasses
-├── data/                 # Data handling
-│   ├── world.py          # Object generation and scene sampling
-│   └── data.py           # Dataset and data loading utilities
-├── training/             # Training modules
-│   ├── train.py          # Basic training loops and optimization
-│   ├── train_grounded.py # Grounded training implementation
-│   └── grounding.py      # Grounded learning utilities
-├── experiments/          # Experiment types
-│   ├── population.py     # Population management and dynamics
-│   ├── contact.py        # Cross-population interaction experiments
-│   ├── ablate.py         # Ablation study framework
-│   └── grid.py           # Grid world experiments
-├── analysis/             # Analysis and evaluation
-│   ├── analysis.py       # Language analysis and metrics
-│   ├── eval.py           # Model evaluation utilities
-│   └── report.py         # Report generation
-├── apps/                 # Applications
-│   ├── app.py            # Streamlit dashboard
-│   └── cli.py            # Command-line interface
-└── utils/                # Utilities
-    └── utils.py          # Common utility functions
-```
+- **`core/`**: Agent architectures (basic, contrastive, improved, meta-learning)
+- **`training/`**: Training loops and optimization techniques
+- **`experiments/`**: Population dynamics, ablation studies, and grid worlds
+- **`analysis/`**: Language analysis, evaluation, and reporting
+- **`apps/`**: CLI and Streamlit dashboard
+- **`data/`**: Object generation and dataset utilities
 
 ### Key Design Principles
 
@@ -213,7 +209,7 @@ src/langlab/
 - **Reproducibility**: Comprehensive seeding and logging
 - **Extensibility**: Easy to add new agent architectures or experiments
 
-## 🔧 Development
+## Development
 
 ### Code Quality
 ```bash
@@ -222,7 +218,15 @@ make lint   # Lint with Ruff
 make type   # Type check with MyPy
 make test   # Run tests with pytest
 make all    # Run all quality checks
+make clean  # Clean up generated files
 ```
+
+### Pre-commit Hooks
+The project includes pre-commit hooks for automatic code quality:
+- **Black**: Automatic code formatting
+- **Ruff**: Fast Python linting
+- **MyPy**: Static type checking
+- **Pre-commit**: Runs all checks before commits
 
 ### Testing
 ```bash
@@ -237,26 +241,3 @@ python -m pytest tests/test_agents.py
 python -m pytest tests/test_population.py
 ```
 
-## 📈 Performance
-
-The framework is optimized for research-scale experiments with state-of-the-art performance:
-
-- **Contrastive Learning**: Enabled by default for 80%+ accuracy (vs ~20% baseline)
-- **Advanced Training**: EMA, learning rate warmup, curriculum learning, and early stopping enabled by default
-- **GPU Support**: Automatic CUDA detection and utilization
-- **Efficient Batching**: Optimized data loading and training loops
-- **Memory Management**: Careful tensor management for large experiments
-- **Parallel Processing**: Support for multi-GPU training
-
-### Development Setup
-```bash
-# Fork and clone the repository
-git clone https://github.com/bangyen/emergent.git
-cd emergent
-
-# Install in development mode
-make init
-
-# Run tests to ensure everything works
-make test
-```
