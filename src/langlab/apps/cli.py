@@ -89,7 +89,7 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 @main.command()
 @click.option("--steps", default=10000, help="Number of training steps")
 @click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=24, help="Vocabulary size")
+@click.option("--v", default=16, help="Vocabulary size")
 @click.option(
     "--l", "--message-length", "message_length", default=2, help="Message length"
 )
@@ -97,8 +97,8 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
 @click.option("--log-every", default=100, help="Logging frequency")
 @click.option("--eval-every", default=500, help="Checkpoint frequency")
 @click.option("--lambda-speaker", default=1.0, help="Speaker loss weight")
-@click.option("--batch-size", default=64, help="Batch size")
-@click.option("--learning-rate", default=5e-4, help="Learning rate")
+@click.option("--batch-size", default=8, help="Batch size")
+@click.option("--learning-rate", default=2e-4, help="Learning rate")
 @click.option("--hidden-size", default=128, help="Hidden dimension size")
 @click.option(
     "--use-sequence-models",
@@ -294,15 +294,15 @@ def eval_cmd(
     help="Standard deviation of Gaussian noise for new agents",
 )
 @click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=10, help="Vocabulary size")
+@click.option("--v", default=16, help="Vocabulary size")
 @click.option(
     "--l", "--message-length", "message_length", default=1, help="Message length"
 )
 @click.option("--seed", default=42, help="Random seed")
 @click.option("--log-every", default=100, help="Logging frequency")
-@click.option("--batch-size", default=32, help="Batch size")
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
-@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--batch-size", default=8, help="Batch size")
+@click.option("--learning-rate", default=2e-4, help="Learning rate")
+@click.option("--hidden-size", default=128, help="Hidden dimension size")
 @click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
 @click.option(
     "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
@@ -375,16 +375,16 @@ def pop_train(
     "--p-contact", default=0.3, help="Probability of cross-population interactions"
 )
 @click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=10, help="Vocabulary size")
+@click.option("--v", default=16, help="Vocabulary size")
 @click.option(
     "--l", "--message-length", "message_length", default=1, help="Message length"
 )
 @click.option("--seed-a", default=42, help="Random seed for Population A")
 @click.option("--seed-b", default=123, help="Random seed for Population B")
 @click.option("--log-every", default=100, help="Logging frequency")
-@click.option("--batch-size", default=32, help="Batch size")
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
-@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--batch-size", default=8, help="Batch size")
+@click.option("--learning-rate", default=2e-4, help="Learning rate")
+@click.option("--hidden-size", default=128, help="Hidden dimension size")
 @click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
 @click.option(
     "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
@@ -515,11 +515,11 @@ def dash(port: int, host: str) -> None:
 @click.option(
     "--l", "--message-length", "message_length", default=3, help="Message length"
 )
-@click.option("--v", default=12, help="Vocabulary size")
+@click.option("--v", default=16, help="Vocabulary size")
 @click.option("--seed", default=3, help="Random seed")
 @click.option("--max-steps", default=15, help="Maximum steps per episode")
-@click.option("--hidden-size", default=64, help="Hidden layer size")
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--hidden-size", default=128, help="Hidden layer size")
+@click.option("--learning-rate", default=2e-4, help="Learning rate")
 @click.option("--entropy-weight", default=0.01, help="Weight for entropy bonus")
 @click.option("--log-every", default=50, help="Logging frequency")
 @click.option("--eval-every", default=100, help="Evaluation frequency")
@@ -582,10 +582,10 @@ def train_grid(
 )
 @click.option("--steps", default=2000, help="Number of training steps per experiment")
 @click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--message-length", default=1, help="Message length")
-@click.option("--batch-size", default=32, help="Batch size")
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
-@click.option("--hidden-size", default=64, help="Hidden dimension size")
+@click.option("--message-length", default=2, help="Message length")
+@click.option("--batch-size", default=8, help="Batch size")
+@click.option("--learning-rate", default=2e-4, help="Learning rate")
+@click.option("--hidden-size", default=128, help="Hidden dimension size")
 @click.option("--entropy-weight", default=0.01, help="Entropy bonus weight")
 @click.option("--seed", default=42, help="Base random seed")
 def ablate(

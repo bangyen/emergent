@@ -33,9 +33,9 @@ class CommunicationConfig:
         dropout_rate: Dropout rate for regularization (default: 0.1).
     """
 
-    vocabulary_size: int = 10
-    message_length: int = 1
-    hidden_size: int = 64
+    vocabulary_size: int = 16
+    message_length: int = 2
+    hidden_size: int = 128
     object_dim: int = 8
     gesture_size: int = 5
     multimodal: bool = False

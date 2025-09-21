@@ -408,17 +408,9 @@ def compute_listener_loss(
     # Use standard cross-entropy loss since listener returns probabilities
     # Convert probabilities to logits for cross-entropy
     logits = torch.log(probabilities + 1e-8)  # Add small epsilon to avoid log(0)
+    loss = F.cross_entropy(logits, target_indices)
 
-    # Apply label smoothing for better generalization
-    loss = F.cross_entropy(logits, target_indices, label_smoothing=0.1)
-
-    # Add focal loss for hard example mining
-    focal_loss_value = focal_loss(logits, target_indices, alpha=1.0, gamma=2.0)
-
-    # Combine losses
-    total_loss = 0.7 * loss + 0.3 * focal_loss_value
-
-    return total_loss
+    return loss
 
 
 def compute_speaker_loss(

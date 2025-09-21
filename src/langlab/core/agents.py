@@ -48,8 +48,12 @@ class Speaker(nn.Module):
             nn.Dropout(0.2),
         )
 
-        # Residual connection
-        self.residual_proj = nn.Linear(self.input_dim, config.hidden_size)
+        # Residual connection for the encoder
+        self.residual_projection = (
+            nn.Linear(self.input_dim, config.hidden_size)
+            if self.input_dim != config.hidden_size
+            else nn.Identity()
+        )
 
         # Output layer for each message position with improved initialization
         self.output_layers = nn.ModuleList(
@@ -120,7 +124,7 @@ class Speaker(nn.Module):
         """
         # Encode object with residual connection
         hidden = self.encoder(object_encoding)  # (batch_size, hidden_size)
-        residual = self.residual_proj(object_encoding)
+        residual = self.residual_projection(object_encoding)
         hidden = hidden + residual
 
         # Generate logits for each message position
@@ -238,6 +242,18 @@ class Listener(nn.Module):
             nn.Dropout(0.2),
         )
 
+        # Residual connections for encoders
+        self.message_residual_proj = (
+            nn.Linear(message_input_dim, config.hidden_size)
+            if message_input_dim != config.hidden_size
+            else nn.Identity()
+        )
+        self.object_residual_proj = (
+            nn.Linear(self.object_dim, config.hidden_size)
+            if self.object_dim != config.hidden_size
+            else nn.Identity()
+        )
+
         # Improved object encoder with better architecture
         self.object_encoder = nn.Sequential(
             nn.Linear(self.object_dim, config.hidden_size),
@@ -249,9 +265,6 @@ class Listener(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.2),
         )
-
-        # Residual projection for object encoder
-        self.object_residual_proj = nn.Linear(self.object_dim, config.hidden_size)
 
         # Remove attention mechanism to reduce overfitting
         # self.attention = nn.MultiheadAttention(
@@ -343,12 +356,14 @@ class Listener(nn.Module):
         else:
             multimodal_input = message_onehot
 
-        # Encode message using simplified encoder
+        # Encode message using simplified encoder with residual connection
         message_features = self.message_encoder(
             multimodal_input
         )  # (batch_size, hidden_size)
+        message_residual = self.message_residual_proj(multimodal_input)
+        message_features = message_features + message_residual
 
-        # Encode all candidate objects using simplified encoder
+        # Encode all candidate objects using simplified encoder with residual connection
         candidate_flat = candidate_objects.view(
             -1, self.object_dim
         )  # (batch_size * num_candidates, object_dim)
