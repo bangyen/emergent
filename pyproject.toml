@@ -38,6 +38,7 @@ dependencies = [
     "seaborn>=0.11.0",
     "streamlit>=1.28.0",
     "pandas>=1.5.0",
+    "scipy>=1.7.0",
 ]
 
 [project.optional-dependencies]
