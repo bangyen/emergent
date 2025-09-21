@@ -46,10 +46,6 @@ class Speaker(nn.Module):
             nn.LayerNorm(config.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(config.hidden_size, config.hidden_size),
-            nn.LayerNorm(config.hidden_size),
-            nn.ReLU(),
-            nn.Dropout(0.2),
         )
 
         # Residual connection
