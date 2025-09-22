@@ -22,6 +22,7 @@ from ..core.contrastive_agents import (
 from ..core.config import CommunicationConfig
 from ..data.data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
 from ..utils.utils import get_logger, get_device, set_seed
+from ..tracking import get_tracker
 
 logger = get_logger(__name__)
 
@@ -809,6 +810,11 @@ def train(
     use_contrastive: bool = True,
     contrastive_temperature: float = 0.07,
     contrastive_weight: float = 0.1,
+    # Experiment tracking parameters
+    tracking_project: str = "langlab-emergent",
+    tracking_experiment_name: Optional[str] = None,
+    tracking_tags: Optional[List[str]] = None,
+    tracking_notes: Optional[str] = None,
 ) -> None:
     """Train Speaker and Listener agents for emergent language.
 
@@ -841,6 +847,55 @@ def train(
     # Create output directories
     os.makedirs("outputs/logs", exist_ok=True)
     os.makedirs("outputs/checkpoints", exist_ok=True)
+
+    # Initialize experiment tracking
+    tracker = None
+    try:
+        experiment_name = (
+            tracking_experiment_name or f"train_k{k}_v{v}_l{message_length}_seed{seed}"
+        )
+        tracker = get_tracker(
+            project_name=tracking_project,
+            experiment_name=experiment_name,
+            tags=tracking_tags or ["training", "emergent-language"],
+            notes=tracking_notes
+            or f"Training with k={k}, v={v}, message_length={message_length}",
+        )
+
+        # Log hyperparameters
+        hyperparams = {
+            "n_steps": n_steps,
+            "k": k,
+            "v": v,
+            "message_length": message_length,
+            "seed": seed,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "hidden_size": hidden_size,
+            "use_sequence_models": use_sequence_models,
+            "entropy_weight": entropy_weight,
+            "length_weight": length_weight,
+            "multimodal": multimodal,
+            "distractors": distractors,
+            "temperature_start": temperature_start,
+            "temperature_end": temperature_end,
+            "use_curriculum": use_curriculum,
+            "use_warmup": use_warmup,
+            "use_ema": use_ema,
+            "use_early_stopping": use_early_stopping,
+            "early_stopping_patience": early_stopping_patience,
+            "early_stopping_min_delta": early_stopping_min_delta,
+            "use_contrastive": use_contrastive,
+            "contrastive_temperature": contrastive_temperature,
+            "contrastive_weight": contrastive_weight,
+            "lambda_speaker": lambda_speaker,
+        }
+        tracker.log_params(hyperparams)
+        logger.info(f"Experiment tracking initialized: {experiment_name}")
+
+    except Exception as e:
+        logger.warning(f"Failed to initialize experiment tracking: {e}")
+        tracker = None
 
     # Get device
     device = get_device()
@@ -1147,6 +1202,10 @@ def train(
                 f"Acc={metrics['accuracy']:.4f}, Baseline={metrics['baseline']:.4f}"
             )
 
+            # Log metrics to experiment tracking
+            if tracker:
+                tracker.log_metrics(metrics, step=step)
+
         # Save metrics
         with open(metrics_file, "a", newline="") as f:
             writer = csv.writer(f)
@@ -1237,3 +1296,13 @@ def train(
     logger.info(f"Training completed. Final accuracy: {metrics['accuracy']:.4f}")
     logger.info(f"Metrics saved to: {metrics_file}")
     logger.info(f"Final checkpoint saved to: {final_checkpoint_path}")
+
+    # Log final model and finish tracking
+    if tracker:
+        try:
+            tracker.log_model(final_checkpoint_path, "final_model")
+            tracker.log_artifact(metrics_file, "training_logs")
+            tracker.log_artifact(message_logs_file, "message_logs")
+            tracker.finish()
+        except Exception as e:
+            logger.warning(f"Failed to log final artifacts: {e}")

@@ -38,6 +38,12 @@ A comprehensive research framework for studying **emergent language** in multi-a
 - **Comprehensive Metrics**: Accuracy, compositionality, entropy, and more
 - **Export Capabilities**: CSV reports and publication-ready figures
 
+### **Experiment Tracking & CI**
+- **MLflow Integration**: MLflow experiment tracking and model registry with hyperparameter logging
+- **Automated CI/CD**: GitHub Actions with comprehensive testing and smoke tests
+- **Expected Metrics Validation**: Automated verification of training performance
+- **Reproducibility**: Comprehensive seeding and experiment tracking
+
 ## Performance
 
 The framework achieves state-of-the-art performance with advanced training techniques:
@@ -70,6 +76,12 @@ make init
 # Run a simple referential game experiment
 langlab train --steps 1000 --k 5 --v 10
 
+# Run with experiment tracking (MLflow)
+langlab train --steps 1000 --k 5 --v 10 \
+  --tracking-project my-project \
+  --tracking-experiment-name baseline-run \
+  --tracking-tags "baseline,experiment-1"
+
 # Launch the interactive dashboard
 langlab dash
 
@@ -90,6 +102,7 @@ langlab info
 
 ```python
 from langlab import Speaker, Listener, sample_scene, CommunicationConfig
+from langlab.tracking import get_tracker
 
 # Create configuration
 config = CommunicationConfig(vocabulary_size=10, message_length=1, hidden_size=64)
@@ -101,6 +114,12 @@ listener = Listener(config)
 # Sample a scene
 scene_objects, target_idx = sample_scene(k=3, seed=42)
 print(f"Target object: {scene_objects[target_idx]}")
+
+# Experiment tracking
+with get_tracker(project_name="my-experiment") as tracker:
+    tracker.log_params({"vocab_size": 10, "message_length": 1})
+    # ... training code ...
+    tracker.log_metrics({"accuracy": 0.85, "loss": 0.12})
 ```
 
 ## Research Applications
@@ -145,6 +164,13 @@ langlab train --steps 5000 --k 5 --v 10 --message-length 1
 
 # Advanced training with contrastive learning (enabled by default)
 langlab train --steps 5000 --k 5 --v 10 --message-length 1 --contrastive-weight 0.1
+
+# Training with experiment tracking
+langlab train --steps 5000 --k 5 --v 10 --message-length 1 \
+  --tracking-project emergent-language \
+  --tracking-experiment-name contrastive-baseline \
+  --tracking-tags "contrastive,baseline" \
+  --tracking-notes "Baseline experiment with contrastive learning"
 ```
 
 ### 2. **Population Dynamics**
@@ -202,6 +228,7 @@ The framework is organized into modular components:
 - **`analysis/`**: Language analysis, evaluation, and reporting
 - **`apps/`**: CLI and Streamlit dashboard
 - **`data/`**: Object generation and dataset utilities
+- **`tracking/`**: Experiment tracking with MLflow integration
 
 ### Key Design Principles
 
@@ -209,6 +236,8 @@ The framework is organized into modular components:
 - **Type Safety**: Full type hints with MyPy validation
 - **Reproducibility**: Comprehensive seeding and logging
 - **Extensibility**: Easy to add new agent architectures or experiments
+- **Experiment Tracking**: Built-in support for MLflow
+- **CI/CD Integration**: Automated testing and validation
 
 ## Development
 
@@ -238,7 +267,10 @@ python -m pytest
 python -m pytest --cov=src --cov-report=html
 
 # Run specific test categories
-python -m pytest tests/test_agents.py
-python -m pytest tests/test_population.py
+python -m pytest tests/unit/test_agents.py
+python -m pytest tests/integration/test_population.py
+
+# Run smoke tests
+python -m pytest tests/integration/test_train_smoke.py -v
 ```
 
