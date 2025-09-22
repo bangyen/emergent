@@ -47,6 +47,10 @@ The framework achieves state-of-the-art performance with advanced training techn
 - **Advanced architectures** with LayerNorm, GELU, and dropout
 - **Robust training** with focal loss, label smoothing, and data augmentation
 
+![Training Progress](docs/smoothed_accuracy.png)
+
+*Language emergence training progress showing smoothed accuracy over time. The agents significantly outperform the random baseline.*
+
 ## Quick Start
 
 ### Installation
