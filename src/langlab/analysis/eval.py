@@ -7,7 +7,7 @@ agent performance across different data splits.
 
 import json
 import os
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional, Union, List, Any
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -563,12 +563,12 @@ def evaluate_with_confidence_intervals(
         accuracies.append(accuracy)
 
     # Calculate statistics
-    accuracies = np.array(accuracies)
-    mean_accuracy = np.mean(accuracies)
-    std_accuracy = np.std(accuracies, ddof=1)  # Sample standard deviation
+    accuracies_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(accuracies)
+    mean_accuracy = np.mean(accuracies_array)
+    std_accuracy = np.std(accuracies_array, ddof=1)  # Sample standard deviation
 
     # Calculate confidence interval
-    n = len(accuracies)
+    n = len(accuracies_array)
     alpha = 1 - confidence_level
     t_critical = stats.t.ppf(1 - alpha / 2, df=n - 1)
     margin_of_error = t_critical * (std_accuracy / np.sqrt(n))
@@ -989,35 +989,45 @@ def evaluate_with_uncertainty_quantification(
                 batch_probs.append(listener_probs.cpu().numpy())
 
             # Calculate uncertainty (variance across samples)
-            batch_predictions = np.array(batch_predictions)  # [n_samples, batch_size]
-            batch_probs = np.array(batch_probs)  # [n_samples, batch_size, k]
+            batch_predictions_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = (
+                np.array(batch_predictions)
+            )  # [n_samples, batch_size]
+            # batch_probs_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(
+            #     batch_probs
+            # )  # [n_samples, batch_size, k]
 
             # Prediction uncertainty (variance in predictions)
-            pred_uncertainty = np.var(batch_predictions, axis=0)
+            pred_uncertainty = np.var(batch_predictions_array, axis=0)
 
             # Probability uncertainty (variance in max probabilities)
-            # max_probs = np.max(batch_probs, axis=2)  # [n_samples, batch_size]
+            # max_probs = np.max(batch_probs_array, axis=2)  # [n_samples, batch_size]
             # prob_uncertainty = np.var(max_probs, axis=0)  # Unused for now
 
             # Use majority vote for final predictions
-            final_predictions = stats.mode(batch_predictions, axis=0)[0].flatten()
+            final_predictions = stats.mode(batch_predictions_array, axis=0)[0].flatten()
 
             all_predictions.extend(final_predictions)
             all_uncertainties.extend(pred_uncertainty)
             all_targets.extend(target_indices.cpu().numpy())
 
     # Calculate accuracy
-    all_predictions = np.array(all_predictions)
-    all_targets = np.array(all_targets)
-    all_uncertainties = np.array(all_uncertainties)
+    all_predictions_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_predictions
+    )
+    all_targets_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_targets
+    )
+    all_uncertainties_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(
+        all_uncertainties
+    )
 
-    accuracy = np.mean(all_predictions == all_targets)
-    avg_uncertainty = np.mean(all_uncertainties)
+    accuracy = np.mean(all_predictions_array == all_targets_array)
+    avg_uncertainty = np.mean(all_uncertainties_array)
 
     # Calculate accuracy vs uncertainty correlation
-    correct_mask = all_predictions == all_targets
+    correct_mask = all_predictions_array == all_targets_array
     uncertainty_correlation = np.corrcoef(
-        correct_mask.astype(float), all_uncertainties
+        correct_mask.astype(float), all_uncertainties_array
     )[0, 1]
 
     logger.info(
@@ -1159,36 +1169,42 @@ def evaluate_with_confidence_metrics(
             all_probs.extend(listener_probs.cpu().numpy())
 
     # Convert to numpy arrays
-    all_predictions = np.array(all_predictions)
-    all_confidences = np.array(all_confidences)
-    all_targets = np.array(all_targets)
-    all_probs = np.array(all_probs)
+    all_predictions_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_predictions
+    )
+    all_confidences_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(
+        all_confidences
+    )
+    all_targets_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_targets
+    )
+    all_probs_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(all_probs)
 
     # Calculate basic accuracy
-    accuracy = np.mean(all_predictions == all_targets)
+    accuracy = np.mean(all_predictions_array == all_targets_array)
 
     # Calculate top-k accuracy (k=2, 3)
     top2_correct = 0
     top3_correct = 0
 
-    for i, target in enumerate(all_targets):
+    for i, target in enumerate(all_targets_array):
         # Get top-k predictions
-        top2_preds = np.argsort(all_probs[i])[-2:]
-        top3_preds = np.argsort(all_probs[i])[-3:]
+        top2_preds = np.argsort(all_probs_array[i])[-2:]
+        top3_preds = np.argsort(all_probs_array[i])[-3:]
 
         if target in top2_preds:
             top2_correct += 1
         if target in top3_preds:
             top3_correct += 1
 
-    top2_accuracy = top2_correct / len(all_targets)
-    top3_accuracy = top3_correct / len(all_targets)
+    top2_accuracy = top2_correct / len(all_targets_array)
+    top3_accuracy = top3_correct / len(all_targets_array)
 
     # Calculate confidence-weighted accuracy
-    correct_mask = all_predictions == all_targets
+    correct_mask = all_predictions_array == all_targets_array
     confidence_weighted_accuracy: float = np.sum(
-        correct_mask * all_confidences
-    ) / np.sum(all_confidences)
+        correct_mask * all_confidences_array
+    ) / np.sum(all_confidences_array)
 
     # Calculate confidence calibration (ECE - Expected Calibration Error)
     n_bins = 10
@@ -1198,19 +1214,21 @@ def evaluate_with_confidence_metrics(
 
     ece = 0
     for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
-        in_bin = (all_confidences > bin_lower) & (all_confidences <= bin_upper)
+        in_bin = (all_confidences_array > bin_lower) & (
+            all_confidences_array <= bin_upper
+        )
         prop_in_bin = in_bin.mean()
 
         if prop_in_bin > 0:
             accuracy_in_bin = correct_mask[in_bin].mean()
-            avg_confidence_in_bin = all_confidences[in_bin].mean()
+            avg_confidence_in_bin = all_confidences_array[in_bin].mean()
             ece += np.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
 
     # Calculate confidence distribution statistics
-    confidence_mean = np.mean(all_confidences)
-    confidence_std = np.std(all_confidences)
+    confidence_mean = np.mean(all_confidences_array)
+    confidence_std = np.std(all_confidences_array)
     confidence_entropy: float = float(
-        -np.sum(np.array(all_confidences) * np.log(np.array(all_confidences) + 1e-8))
+        -np.sum(all_confidences_array * np.log(all_confidences_array + 1e-8))
     )
 
     logger.info(
@@ -1349,15 +1367,21 @@ def evaluate_ensemble_robustness(
                 all_probabilities.append(listener_probs.cpu().numpy())
 
             # Combine predictions
-            all_predictions = np.array(all_predictions)  # [n_models, batch_size]
-            all_probabilities = np.array(all_probabilities)  # [n_models, batch_size, k]
+            all_predictions_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = (
+                np.array(all_predictions)
+            )  # [n_models, batch_size]
+            all_probabilities_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = (
+                np.array(all_probabilities)
+            )  # [n_models, batch_size, k]
 
             if ensemble_method == "voting":
                 # Majority voting
-                ensemble_predictions = stats.mode(all_predictions, axis=0)[0].flatten()
+                ensemble_predictions = stats.mode(all_predictions_array, axis=0)[
+                    0
+                ].flatten()
             elif ensemble_method == "averaging":
                 # Average probabilities then take argmax
-                avg_probs = np.mean(all_probabilities, axis=0)
+                avg_probs = np.mean(all_probabilities_array, axis=0)
                 ensemble_predictions = np.argmax(avg_probs, axis=1)
             else:
                 raise ValueError(f"Unknown ensemble method: {ensemble_method}")
@@ -1520,39 +1544,45 @@ def evaluate_with_bootstrap_confidence_intervals(
             all_targets.extend(target_indices.cpu().numpy())
 
     # Convert to numpy arrays
-    all_predictions = np.array(all_predictions)
-    all_targets = np.array(all_targets)
+    all_predictions_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_predictions
+    )
+    all_targets_array: np.ndarray[Any, np.dtype[np.integer[Any]]] = np.array(
+        all_targets
+    )
 
     # Calculate original accuracy
-    original_accuracy = np.mean(all_predictions == all_targets)
+    original_accuracy = np.mean(all_predictions_array == all_targets_array)
 
     # Bootstrap sampling
-    n_samples = len(all_predictions)
+    n_samples = len(all_predictions_array)
     bootstrap_accuracies = []
 
     np.random.seed(42)  # For reproducibility
     for _ in range(n_bootstrap):
         # Sample with replacement
         bootstrap_indices = np.random.choice(n_samples, size=n_samples, replace=True)
-        bootstrap_predictions = all_predictions[bootstrap_indices]
-        bootstrap_targets = all_targets[bootstrap_indices]
+        bootstrap_predictions = all_predictions_array[bootstrap_indices]
+        bootstrap_targets = all_targets_array[bootstrap_indices]
 
         # Calculate accuracy for this bootstrap sample
         bootstrap_accuracy = np.mean(bootstrap_predictions == bootstrap_targets)
         bootstrap_accuracies.append(bootstrap_accuracy)
 
     # Calculate bootstrap statistics
-    bootstrap_accuracies = np.array(bootstrap_accuracies)
-    bootstrap_mean = np.mean(bootstrap_accuracies)
-    bootstrap_std = np.std(bootstrap_accuracies)
+    bootstrap_accuracies_array: np.ndarray[Any, np.dtype[np.floating[Any]]] = np.array(
+        bootstrap_accuracies
+    )
+    bootstrap_mean = np.mean(bootstrap_accuracies_array)
+    bootstrap_std = np.std(bootstrap_accuracies_array)
 
     # Calculate confidence intervals
     alpha = 1 - confidence_level
     lower_percentile = (alpha / 2) * 100
     upper_percentile = (1 - alpha / 2) * 100
 
-    ci_lower = np.percentile(bootstrap_accuracies, lower_percentile)
-    ci_upper = np.percentile(bootstrap_accuracies, upper_percentile)
+    ci_lower = np.percentile(bootstrap_accuracies_array, lower_percentile)
+    ci_upper = np.percentile(bootstrap_accuracies_array, upper_percentile)
 
     logger.info(
         f"Bootstrap evaluation on {split} split: "
