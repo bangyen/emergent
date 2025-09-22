@@ -186,6 +186,26 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     default=False,
     help="Disable curriculum learning with progressive difficulty (enabled by default)",
 )
+@click.option(
+    "--tracking-project",
+    default="langlab-emergent",
+    help="Project name for experiment tracking",
+)
+@click.option(
+    "--tracking-experiment-name",
+    default=None,
+    help="Name for this experiment run",
+)
+@click.option(
+    "--tracking-tags",
+    default=None,
+    help="Comma-separated tags for experiment tracking",
+)
+@click.option(
+    "--tracking-notes",
+    default=None,
+    help="Notes for this experiment run",
+)
 def train_cmd(
     steps: int,
     k: int,
@@ -215,6 +235,10 @@ def train_cmd(
     disable_ema: bool,
     disable_warmup: bool,
     disable_curriculum: bool,
+    tracking_project: str,
+    tracking_experiment_name: Optional[str],
+    tracking_tags: Optional[str],
+    tracking_notes: Optional[str],
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
     logger.info(
@@ -259,6 +283,18 @@ def train_cmd(
         heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
         logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
 
+    # Parse tracking tags
+    tracking_tags_list = None
+    if tracking_tags:
+        tracking_tags_list = [tag.strip() for tag in tracking_tags.split(",")]
+        logger.info(f"Using tracking tags: {tracking_tags_list}")
+
+    # Log tracking configuration
+    logger.info("Experiment tracking enabled with MLflow")
+    logger.info(f"Project: {tracking_project}")
+    if tracking_experiment_name:
+        logger.info(f"Experiment name: {tracking_experiment_name}")
+
     try:
         train(
             n_steps=steps,
@@ -289,6 +325,11 @@ def train_cmd(
             use_ema=use_ema,
             use_warmup=use_warmup,
             use_curriculum=use_curriculum,
+            # Experiment tracking parameters
+            tracking_project=tracking_project,
+            tracking_experiment_name=tracking_experiment_name,
+            tracking_tags=tracking_tags_list,
+            tracking_notes=tracking_notes,
         )
         click.echo("Training completed successfully!")
 
