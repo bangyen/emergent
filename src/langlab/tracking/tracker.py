@@ -5,10 +5,13 @@ monitor training progress, log hyperparameters, and track metrics across differe
 """
 
 import os
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 from dataclasses import dataclass
 
 from ..utils.utils import get_logger
+
+if TYPE_CHECKING:
+    from mlflow.entities import Run
 
 logger = get_logger(__name__)
 
@@ -47,7 +50,7 @@ class ExperimentTracker:
             config: Tracking configuration specifying settings.
         """
         self.config = config
-        self.mlflow_run = None
+        self.mlflow_run: Optional["Run"] = None
         self._initialized = False
 
         # Initialize tracking
