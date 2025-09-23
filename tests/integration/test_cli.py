@@ -50,7 +50,7 @@ class TestCLIIntegration:
         assert "Available colors" in result.output
         assert "Device:" in result.output
 
-    @patch("langlab.apps.cli.train")
+    @patch("src.langlab.apps.cli.train")
     def test_train_command_mock(self, mock_train: Any) -> None:
         """Test train command with mocked training function."""
         mock_train.return_value = None
@@ -64,7 +64,7 @@ class TestCLIIntegration:
         assert "Training completed successfully!" in result.output
         mock_train.assert_called_once()
 
-    @patch("langlab.apps.cli.evaluate")
+    @patch("src.langlab.apps.cli.evaluate")
     def test_eval_command_mock(self, mock_eval: Any) -> None:
         """Test eval command with mocked evaluation function."""
         mock_eval.return_value = {"acc": 0.85}
@@ -88,7 +88,7 @@ class TestCLIIntegration:
         assert "Accuracy: 0.8500" in result.output
         mock_eval.assert_called_once()
 
-    @patch("langlab.apps.cli.train_population")
+    @patch("src.langlab.apps.cli.train_population")
     def test_pop_train_command_mock(self, mock_train_pop: Any) -> None:
         """Test population training command with mocked function."""
         mock_train_pop.return_value = None
@@ -102,7 +102,7 @@ class TestCLIIntegration:
         assert "Population training completed successfully!" in result.output
         mock_train_pop.assert_called_once()
 
-    @patch("langlab.apps.cli.train_contact_experiment")
+    @patch("src.langlab.apps.cli.train_contact_experiment")
     def test_contact_command_mock(self, mock_contact: Any) -> None:
         """Test contact experiment command with mocked function."""
         mock_contact.return_value = None
@@ -127,7 +127,7 @@ class TestCLIIntegration:
         assert "Contact experiment completed successfully!" in result.output
         mock_contact.assert_called_once()
 
-    @patch("langlab.apps.cli.train_grounded")
+    @patch("src.langlab.apps.cli.train_grounded")
     def test_train_grid_command_mock(self, mock_grounded: Any) -> None:
         """Test grounded training command with mocked function."""
         mock_grounded.return_value = None
@@ -141,7 +141,7 @@ class TestCLIIntegration:
         assert "Grounded training completed successfully!" in result.output
         mock_grounded.assert_called_once()
 
-    @patch("langlab.apps.cli.run_ablation_suite")
+    @patch("src.langlab.apps.cli.run_ablation_suite")
     def test_ablate_command_mock(self, mock_ablate: Any) -> None:
         """Test ablation command with mocked function."""
         mock_ablate.return_value = [{"exp_id": "test_1", "acc": 0.8}]
@@ -166,7 +166,7 @@ class TestCLIIntegration:
         assert "Ablation study completed successfully!" in result.output
         mock_ablate.assert_called_once()
 
-    @patch("langlab.apps.cli.create_report")
+    @patch("src.langlab.apps.cli.create_report")
     def test_report_command_mock(self, mock_report: Any) -> None:
         """Test report command with mocked function."""
         mock_report.return_value = {
@@ -264,7 +264,7 @@ class TestCLIErrorHandling:
         assert result.exit_code == 0  # CLI succeeds
         assert "Error:" in result.output  # But shows error message
 
-    @patch("langlab.apps.cli.train")
+    @patch("src.langlab.apps.cli.train")
     def test_training_error_handling(self, mock_train: Any) -> None:
         """Test that training errors are handled gracefully."""
         mock_train.side_effect = Exception("Training failed")
@@ -305,8 +305,8 @@ class TestCLIWorkflows:
         result2 = runner.invoke(main, ["sample", "--k", "3"])
         assert result2.exit_code == 0
 
-    @patch("langlab.apps.cli.train")
-    @patch("langlab.apps.cli.evaluate")
+    @patch("src.langlab.apps.cli.train")
+    @patch("src.langlab.apps.cli.evaluate")
     def test_train_to_eval_workflow(self, mock_eval: Any, mock_train: Any) -> None:
         """Test workflow from training to evaluation."""
         mock_train.return_value = None

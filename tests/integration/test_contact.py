@@ -295,7 +295,7 @@ class TestHeatmapIO:
 class TestContactIntegration:
     """Integration tests for contact experiment workflow."""
 
-    @patch("langlab.experiments.contact.ContactExperiment")
+    @patch("src.langlab.experiments.contact.ContactExperiment")
     def test_train_contact_experiment_calls(self, mock_experiment_class: Mock) -> None:
         """Test that train_contact_experiment calls all required methods."""
         # Mock the experiment instance

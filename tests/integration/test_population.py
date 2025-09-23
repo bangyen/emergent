@@ -160,7 +160,7 @@ class TestPopulationManager:
         config = PopulationConfig(n_pairs=3, lifespan=100, seed=42)
 
         with patch(
-            "langlab.experiments.population.get_device",
+            "src.langlab.experiments.population.get_device",
             return_value=torch.device("cpu"),
         ):
             population = PopulationManager(config)
@@ -180,7 +180,7 @@ class TestPopulationManager:
         config = PopulationConfig(n_pairs=2, lifespan=5, seed=42)
 
         with patch(
-            "langlab.experiments.population.get_device",
+            "src.langlab.experiments.population.get_device",
             return_value=torch.device("cpu"),
         ):
             population = PopulationManager(config)
@@ -207,7 +207,7 @@ class TestPopulationManager:
         config_no_crossplay = PopulationConfig(n_pairs=3, crossplay_prob=0.0, seed=42)
 
         with patch(
-            "langlab.experiments.population.get_device",
+            "src.langlab.experiments.population.get_device",
             return_value=torch.device("cpu"),
         ):
             population_no_crossplay = PopulationManager(config_no_crossplay)
@@ -223,7 +223,7 @@ class TestPopulationManager:
         config_crossplay = PopulationConfig(n_pairs=3, crossplay_prob=0.5, seed=42)
 
         with patch(
-            "langlab.experiments.population.get_device",
+            "src.langlab.experiments.population.get_device",
             return_value=torch.device("cpu"),
         ):
             population_crossplay = PopulationManager(config_crossplay)
@@ -245,7 +245,7 @@ class TestPopulationManager:
         config = PopulationConfig(n_pairs=2, lifespan=100, seed=42)
 
         with patch(
-            "langlab.experiments.population.get_device",
+            "src.langlab.experiments.population.get_device",
             return_value=torch.device("cpu"),
         ):
             population = PopulationManager(config)
@@ -273,11 +273,11 @@ class TestPopulationManager:
 class TestTrainPopulation:
     """Test cases for train_population function."""
 
-    @patch("langlab.experiments.population.ReferentialGameDataset")
-    @patch("langlab.experiments.population.DataLoader")
-    @patch("langlab.experiments.population.PopulationManager")
-    @patch("langlab.experiments.population.set_seed")
-    @patch("langlab.experiments.population.os.makedirs")
+    @patch("src.langlab.experiments.population.ReferentialGameDataset")
+    @patch("src.langlab.experiments.population.DataLoader")
+    @patch("src.langlab.experiments.population.PopulationManager")
+    @patch("src.langlab.experiments.population.set_seed")
+    @patch("src.langlab.experiments.population.os.makedirs")
     def test_train_population_basic(
         self,
         mock_makedirs: Any,

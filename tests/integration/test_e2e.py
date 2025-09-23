@@ -36,7 +36,7 @@ class TestEndToEndWorkflows:
         listener = Listener(sample_config)
 
         # 3. Mock Training (to avoid long execution)
-        with patch("langlab.training.train.train") as mock_train:
+        with patch("src.langlab.training.train.train") as mock_train:
             mock_train.return_value = None
 
             # Simulate training completion
@@ -52,7 +52,7 @@ class TestEndToEndWorkflows:
             torch.save(checkpoint_data, checkpoint_path)
 
             # 4. Evaluation
-            with patch("langlab.analysis.eval.evaluate") as mock_eval:
+            with patch("src.langlab.analysis.eval.evaluate") as mock_eval:
                 mock_eval.return_value = {
                     "acc": 0.85,
                     "entropy": 1.2,
@@ -60,7 +60,7 @@ class TestEndToEndWorkflows:
                 }
 
                 # Import and call the mocked function
-                from langlab.analysis.eval import evaluate
+                from src.langlab.analysis.eval import evaluate
 
                 results = evaluate(
                     model_path=str(checkpoint_path),
@@ -78,7 +78,7 @@ class TestEndToEndWorkflows:
     ) -> None:
         """Test complete ablation study workflow."""
         # Mock ablation suite execution
-        with patch("langlab.experiments.ablate.run_ablation_suite") as mock_ablate:
+        with patch("src.langlab.experiments.ablate.run_ablation_suite") as mock_ablate:
             mock_results = [
                 {
                     "experiment_id": "exp_001_V6_noise0.00_len0.00",
@@ -96,7 +96,7 @@ class TestEndToEndWorkflows:
             mock_ablate.return_value = mock_results
 
             # Import and call the mocked function
-            from langlab.experiments.ablate import run_ablation_suite
+            from src.langlab.experiments.ablate import run_ablation_suite
 
             # Run ablation study
             results = run_ablation_suite(
@@ -146,7 +146,7 @@ class TestEndToEndWorkflows:
             )
 
         # Mock report generation
-        with patch("langlab.analysis.report.create_report") as mock_report:
+        with patch("src.langlab.analysis.report.create_report") as mock_report:
             mock_report.return_value = {
                 "csv_path": str(temp_output_dir / "summary" / "ablation.csv"),
                 "summary_path": str(temp_output_dir / "summary" / "summary.json"),
@@ -173,7 +173,7 @@ class TestEndToEndWorkflows:
     ) -> None:
         """Test analysis workflow with mock data."""
         # Test token distribution analysis
-        with patch("langlab.apps.app.analyze_token_distribution") as mock_analyze:
+        with patch("src.langlab.apps.app.analyze_token_distribution") as mock_analyze:
             mock_analyze.return_value = {
                 "zipf_slope": -0.8,
                 "gini_coefficient": 0.3,
@@ -182,7 +182,7 @@ class TestEndToEndWorkflows:
             }
 
             # Import and call the mocked function
-            from langlab.apps.app import analyze_token_distribution
+            from src.langlab.apps.app import analyze_token_distribution
 
             analysis_results = analyze_token_distribution(
                 sample_message_tokens.tolist()
@@ -240,7 +240,7 @@ class TestDataWorkflow:
         ]
 
         # Encode objects
-        from langlab.data.world import encode_object
+        from src.langlab.data.world import encode_object
 
         encodings = [encode_object(obj) for obj in objects]
 
@@ -320,7 +320,7 @@ class TestAgentWorkflow:
         self, sample_config: Any, sample_scene_tensor: Any
     ) -> None:
         """Test pragmatic Speaker-Listener interaction."""
-        from langlab.core.agents import PragmaticListener
+        from src.langlab.core.agents import PragmaticListener
 
         speaker = Speaker(sample_config)
         literal_listener = Listener(sample_config)
@@ -357,7 +357,7 @@ class TestEvaluationWorkflow:
         torch.save(mock_checkpoint, checkpoint_path)
 
         # Mock evaluation
-        with patch("langlab.analysis.eval.evaluate") as mock_eval:
+        with patch("src.langlab.analysis.eval.evaluate") as mock_eval:
             mock_eval.return_value = {
                 "acc": 0.85,
                 "entropy": 1.2,
@@ -366,7 +366,7 @@ class TestEvaluationWorkflow:
             }
 
             # Import and call the mocked function
-            from langlab.analysis.eval import evaluate
+            from src.langlab.analysis.eval import evaluate
 
             results = evaluate(
                 model_path=str(checkpoint_path),
@@ -387,7 +387,7 @@ class TestEvaluationWorkflow:
         checkpoint_path = temp_output_dir / "test_checkpoint.pt"
         torch.save(mock_checkpoint, checkpoint_path)
 
-        with patch("langlab.analysis.eval.evaluate") as mock_eval:
+        with patch("src.langlab.analysis.eval.evaluate") as mock_eval:
             mock_eval.return_value = {
                 "acc": 0.75,
                 "entropy": 1.4,
@@ -395,7 +395,7 @@ class TestEvaluationWorkflow:
             }
 
             # Import and call the mocked function
-            from langlab.analysis.eval import evaluate
+            from src.langlab.analysis.eval import evaluate
 
             results = evaluate(
                 model_path=str(checkpoint_path),
@@ -415,7 +415,7 @@ class TestEvaluationWorkflow:
         """Test complete analysis pipeline workflow."""
         # Mock analysis functions
         with patch(
-            "langlab.apps.app.analyze_token_distribution"
+            "src.langlab.apps.app.analyze_token_distribution"
         ) as mock_token_analysis:
             mock_token_analysis.return_value = {
                 "zipf_slope": -0.8,
@@ -428,7 +428,7 @@ class TestEvaluationWorkflow:
 
             # Run analysis pipeline
             # Import and call the mocked functions
-            from langlab.apps.app import analyze_token_distribution
+            from src.langlab.apps.app import analyze_token_distribution
 
             token_results = analyze_token_distribution(sample_message_tokens.tolist())
 
