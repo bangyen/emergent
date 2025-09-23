@@ -100,7 +100,6 @@ class CurriculumScheduler:
             and self.level_successes / self.episodes_at_level >= self.success_threshold
             and self.current_level < len(self.curriculum_grids) - 1
         ):
-
             logger.info(f"Advancing to curriculum level {self.current_level + 1}")
             self.current_level += 1
             self.episodes_at_level = 0

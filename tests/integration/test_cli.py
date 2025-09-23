@@ -214,7 +214,8 @@ class TestCLIIntegration:
         """Test heldout pair parsing in train command."""
         runner = CliRunner()
         result = runner.invoke(
-            main, ["train", "--steps", "10", "--heldout", "red,circle"]  # Valid format
+            main,
+            ["train", "--steps", "10", "--heldout", "red,circle"],  # Valid format
         )
         # Should not crash on parsing
         assert result.exit_code == 0 or result.exit_code == 1  # May fail on training

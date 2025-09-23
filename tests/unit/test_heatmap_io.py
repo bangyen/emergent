@@ -52,7 +52,6 @@ class TestHeatmapIO:
         ), patch(
             "seaborn.heatmap"
         ):
-
             experiment._create_heatmap()
 
             # Check that savefig was called with correct path
@@ -78,7 +77,6 @@ class TestHeatmapIO:
         ), patch(
             "seaborn.heatmap"
         ) as mock_heatmap:
-
             experiment._create_heatmap()
 
             # Check that heatmap was called with correct data
@@ -168,7 +166,6 @@ class TestHeatmapIO:
         ), patch(
             "seaborn.heatmap"
         ) as mock_heatmap:
-
             experiment._create_heatmap()
 
             # Check labels
@@ -212,7 +209,6 @@ class TestHeatmapIO:
         ), patch(
             "seaborn.heatmap"
         ):
-
             experiment.save_results()
 
             # Check file paths

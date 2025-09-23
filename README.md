@@ -59,6 +59,8 @@ The framework achieves state-of-the-art performance with advanced training techn
 
 ## Quick Start
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bangyen/zsharp/blob/main/zsharp_demo.ipynb)
+
 ### Installation
 
 ```bash
