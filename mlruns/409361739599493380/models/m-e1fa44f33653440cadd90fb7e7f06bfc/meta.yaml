@@ -1,0 +1,10 @@
+artifact_location: file:///Users/bangyen/Documents/repos/emergent/mlruns/409361739599493380/models/m-e1fa44f33653440cadd90fb7e7f06bfc/artifacts
+creation_timestamp: 1758664769593
+experiment_id: '409361739599493380'
+last_updated_timestamp: 1758664769605
+model_id: m-e1fa44f33653440cadd90fb7e7f06bfc
+model_type: null
+name: final_model
+source_run_id: d671866fdfd043f5b07b9d65cf43ea04
+status: 3
+status_message: null

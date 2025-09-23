@@ -29,7 +29,7 @@ class TestTrainingIntegration:
             mock_makedirs.return_value = None
 
             # Mock the actual training to avoid long execution
-            with patch("langlab.training.train.train_step") as mock_train_step:
+            with patch("src.langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
@@ -70,7 +70,7 @@ class TestTrainingIntegration:
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.training.train.train_step") as mock_train_step:
+            with patch("src.langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.4,
                     "listener_loss": 0.2,
@@ -99,7 +99,7 @@ class TestTrainingIntegration:
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.training.train.train_step") as mock_train_step:
+            with patch("src.langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.6,
                     "listener_loss": 0.4,
@@ -129,7 +129,7 @@ class TestTrainingIntegration:
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.training.train.train_step") as mock_train_step:
+            with patch("src.langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.7,
                     "listener_loss": 0.5,
@@ -160,7 +160,7 @@ class TestTrainingIntegration:
         with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.return_value = None
 
-            with patch("langlab.training.train.train_step") as mock_train_step:
+            with patch("src.langlab.training.train.train_step") as mock_train_step:
                 mock_train_step.return_value = {
                     "speaker_loss": 0.5,
                     "listener_loss": 0.3,
@@ -199,12 +199,12 @@ class TestPopulationIntegration:
 
             # Mock the train_population function directly
             with patch(
-                "langlab.experiments.population.train_population"
+                "src.langlab.experiments.population.train_population"
             ) as mock_train_pop:
                 mock_train_pop.return_value = None
 
                 # Import after patching
-                from langlab.experiments.population import train_population
+                from src.langlab.experiments.population import train_population
 
                 train_population(
                     n_steps=20,
@@ -228,7 +228,10 @@ class TestPopulationIntegration:
 
     def test_population_manager_workflow(self, sample_config: Any) -> None:
         """Test PopulationManager workflow."""
-        from langlab.experiments.population import PopulationManager, PopulationConfig
+        from src.langlab.experiments.population import (
+            PopulationManager,
+            PopulationConfig,
+        )
 
         # Create population config
         pop_config = PopulationConfig(
@@ -276,7 +279,10 @@ class TestPopulationIntegration:
 
     def test_crossplay_interactions(self, sample_config: Any) -> None:
         """Test cross-pair interactions in population."""
-        from langlab.experiments.population import PopulationManager, PopulationConfig
+        from src.langlab.experiments.population import (
+            PopulationManager,
+            PopulationConfig,
+        )
 
         # Create population config
         pop_config = PopulationConfig(
@@ -316,12 +322,12 @@ class TestContactIntegration:
 
             # Mock the train_contact_experiment function directly
             with patch(
-                "langlab.experiments.contact.train_contact_experiment"
+                "src.langlab.experiments.contact.train_contact_experiment"
             ) as mock_train_contact:
                 mock_train_contact.return_value = None
 
                 # Import after patching
-                from langlab.experiments.contact import train_contact_experiment
+                from src.langlab.experiments.contact import train_contact_experiment
 
                 train_contact_experiment(
                     n_pairs=sample_contact_config["n_pairs"],
@@ -348,7 +354,7 @@ class TestContactIntegration:
 
     def test_contact_experiment_config(self, sample_contact_config: Any) -> None:
         """Test contact experiment configuration."""
-        from langlab.experiments.contact import ContactConfig
+        from src.langlab.experiments.contact import ContactConfig
 
         config = ContactConfig(
             n_pairs=sample_contact_config["n_pairs"],

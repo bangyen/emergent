@@ -15,7 +15,7 @@ class TestAppImports:
     def test_app_imports(self) -> None:
         """Test that importing the app module does not raise exceptions."""
         try:
-            from langlab.apps.app import main
+            from src.langlab.apps.app import main
 
             assert callable(main)
         except ImportError as e:
@@ -25,7 +25,7 @@ class TestAppImports:
 
     def test_app_exposes_main_function(self) -> None:
         """Test that the app module exposes a main() function."""
-        from langlab.apps.app import main
+        from src.langlab.apps.app import main
 
         assert callable(main)
         assert main.__name__ == "main"
@@ -50,11 +50,11 @@ class TestAppImports:
 
         # Test internal modules can be imported
         modules_to_test = [
-            "langlab.analysis",
-            "langlab.data.world",
-            "langlab.core.agents",
-            "langlab.core.config",
-            "langlab.utils",
+            "src.langlab.analysis",
+            "src.langlab.data.world",
+            "src.langlab.core.agents",
+            "src.langlab.core.config",
+            "src.langlab.utils",
         ]
 
         for module_name in modules_to_test:
@@ -67,13 +67,13 @@ class TestAppFunctions:
 
     def test_load_checkpoint_function_exists(self) -> None:
         """Test that the load_checkpoint function exists and is callable."""
-        from langlab.apps.app import load_checkpoint
+        from src.langlab.apps.app import load_checkpoint
 
         assert callable(load_checkpoint)
 
     def test_load_checkpoint_with_nonexistent_file(self) -> None:
         """Test load_checkpoint with nonexistent file."""
-        from langlab.apps.app import load_checkpoint
+        from src.langlab.apps.app import load_checkpoint
 
         result = load_checkpoint("nonexistent_file.pt")
         assert result is None
@@ -81,7 +81,7 @@ class TestAppFunctions:
     @patch("torch.load")
     def test_load_checkpoint_with_mock_data(self, mock_torch_load: Any) -> None:
         """Test load_checkpoint with mock torch data."""
-        from langlab.apps.app import load_checkpoint
+        from src.langlab.apps.app import load_checkpoint
 
         # Mock successful checkpoint loading
         mock_checkpoint = {
@@ -99,31 +99,31 @@ class TestAppFunctions:
 
     def test_create_accuracy_plot_function_exists(self) -> None:
         """Test that create_accuracy_plot function exists."""
-        from langlab.apps.app import create_accuracy_plot
+        from src.langlab.apps.app import create_accuracy_plot
 
         assert callable(create_accuracy_plot)
 
     def test_create_entropy_plot_function_exists(self) -> None:
         """Test that create_entropy_plot function exists."""
-        from langlab.apps.app import create_entropy_plot
+        from src.langlab.apps.app import create_entropy_plot
 
         assert callable(create_entropy_plot)
 
     def test_create_zipf_plot_function_exists(self) -> None:
         """Test that create_zipf_plot function exists."""
-        from langlab.apps.app import create_zipf_plot
+        from src.langlab.apps.app import create_zipf_plot
 
         assert callable(create_zipf_plot)
 
     def test_analyze_token_distribution_function_exists(self) -> None:
         """Test that analyze_token_distribution function exists."""
-        from langlab.apps.app import analyze_token_distribution
+        from src.langlab.apps.app import analyze_token_distribution
 
         assert callable(analyze_token_distribution)
 
     def test_compute_zipf_slope_function_exists(self) -> None:
         """Test that compute_zipf_slope function exists."""
-        from langlab.apps.app import compute_zipf_slope
+        from src.langlab.apps.app import compute_zipf_slope
 
         assert callable(compute_zipf_slope)
 
@@ -133,7 +133,7 @@ class TestAppIntegration:
 
     def test_main_function_signature(self) -> None:
         """Test that main function has correct signature."""
-        from langlab.apps.app import main
+        from src.langlab.apps.app import main
 
         # Check that main can be called without arguments
         # (We can't actually run it in tests, but we can check the signature)
@@ -144,7 +144,7 @@ class TestAppIntegration:
 
     def test_app_module_structure(self) -> None:
         """Test that the app module has expected structure."""
-        import langlab.apps.app as app_module
+        import src.langlab.apps.app as app_module
 
         # Check that expected functions exist
         expected_functions = [
@@ -166,7 +166,7 @@ class TestAppIntegration:
     def test_app_can_handle_empty_data(self) -> None:
         """Test that app functions can handle empty data gracefully."""
         import pandas as pd
-        from langlab.apps.app import (
+        from src.langlab.apps.app import (
             create_accuracy_plot,
             create_entropy_plot,
             create_zipf_plot,
@@ -185,7 +185,7 @@ class TestAppIntegration:
     def test_app_can_handle_missing_columns(self) -> None:
         """Test that app functions can handle DataFrames with missing columns."""
         import pandas as pd
-        from langlab.apps.app import (
+        from src.langlab.apps.app import (
             create_accuracy_plot,
             create_entropy_plot,
         )
