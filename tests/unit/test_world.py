@@ -7,7 +7,7 @@ functionality in the Language Emergence Lab world module.
 import pytest
 import torch
 
-from langlab.data.world import (
+from src.langlab.data.world import (
     make_object,
     sample_scene,
     encode_object,

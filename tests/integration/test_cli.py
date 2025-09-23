@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
-from langlab.apps.cli import main
+from src.langlab.apps.cli import main
 
 
 @pytest.mark.integration

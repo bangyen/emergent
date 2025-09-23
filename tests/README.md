@@ -268,7 +268,7 @@ import pytest
 import torch
 from unittest.mock import patch, Mock
 
-from langlab.module_name import function_name
+from src.langlab.module_name import function_name
 
 
 @pytest.mark.unit
@@ -292,7 +292,7 @@ class TestFunctionName:
         with pytest.raises(ValueError, match="Expected error message"):
             function_name(invalid_input, sample_config)
 
-    @patch('langlab.module_name.external_function')
+    @patch('src.langlab.module_name.external_function')
     def test_with_mock(self, mock_external, sample_config):
         """Test with mocked external dependency."""
         mock_external.return_value = expected_value
@@ -317,7 +317,7 @@ class TestWorkflowName:
         setup_data = create_setup_data()
         
         # Step 2: Execute
-        with patch('langlab.module.slow_function') as mock_slow:
+        with patch('src.langlab.module.slow_function') as mock_slow:
             mock_slow.return_value = expected_result
             
             result = execute_workflow(setup_data, sample_config)

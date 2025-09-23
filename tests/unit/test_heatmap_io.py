@@ -7,7 +7,7 @@ operations in the contact experiment system.
 import numpy as np
 from unittest.mock import patch, mock_open
 
-from langlab.experiments.contact import ContactExperiment, ContactConfig
+from src.langlab.experiments.contact import ContactExperiment, ContactConfig
 
 
 class TestHeatmapIO:

@@ -6,9 +6,9 @@ and that all operations maintain correct tensor dimensions.
 
 import torch
 
-from langlab.training.train import compute_listener_loss, compute_speaker_loss
-from langlab.core.agents import Speaker, Listener
-from langlab.core.config import CommunicationConfig
+from src.langlab.training.train import compute_listener_loss, compute_speaker_loss
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.core.config import CommunicationConfig
 
 
 class TestLossShapes:

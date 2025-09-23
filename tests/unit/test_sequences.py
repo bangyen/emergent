@@ -7,9 +7,9 @@ autoregressive SpeakerSeq and sequence-aware ListenerSeq models.
 import pytest
 import torch
 
-from langlab.core.agents import SpeakerSeq, ListenerSeq
-from langlab.core.config import CommunicationConfig
-from langlab.data.world import TOTAL_ATTRIBUTES
+from src.langlab.core.agents import SpeakerSeq, ListenerSeq
+from src.langlab.core.config import CommunicationConfig
+from src.langlab.data.world import TOTAL_ATTRIBUTES
 
 
 @pytest.fixture

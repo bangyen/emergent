@@ -7,8 +7,8 @@ CompositionalDataset class, ensuring proper separation of held-out combinations.
 import pytest
 import torch
 
-from langlab.data.data import make_compositional_splits, CompositionalDataset
-from langlab.data.world import COLORS, SHAPES, SIZES
+from src.langlab.data.data import make_compositional_splits, CompositionalDataset
+from src.langlab.data.world import COLORS, SHAPES, SIZES
 
 
 class TestCompositionalSplits:

@@ -7,11 +7,11 @@ outputs when using fixed seeds and no stochastic sampling.
 import pytest
 import torch
 
-from langlab.core.agents import Speaker, Listener
-from langlab.core.channel import DiscreteChannel
-from langlab.core.config import CommunicationConfig
-from langlab.utils.utils import set_seed
-from langlab.data.world import TOTAL_ATTRIBUTES
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.core.channel import DiscreteChannel
+from src.langlab.core.config import CommunicationConfig
+from src.langlab.utils.utils import set_seed
+from src.langlab.data.world import TOTAL_ATTRIBUTES
 
 
 @pytest.fixture
@@ -27,7 +27,8 @@ def test_deterministic_sampling_with_seed(
 ) -> None:
     """Test that outputs are deterministic with fixed seed and no Gumbel noise."""
     # Set global seed
-    set_seed(deterministic_config.seed)
+    if deterministic_config.seed is not None:
+        set_seed(deterministic_config.seed)
 
     # Create agents
     speaker = Speaker(deterministic_config)
@@ -55,7 +56,8 @@ def test_deterministic_sampling_with_seed(
     results = []
     for _ in range(3):
         # Reset seed before each run
-        set_seed(deterministic_config.seed)
+        if deterministic_config.seed is not None:
+            set_seed(deterministic_config.seed)
 
         # Speaker forward pass
         logits, tokens, _, _ = speaker(object_encoding)
@@ -161,10 +163,12 @@ def test_reproducible_agent_initialization() -> None:
     )
 
     # Create agents multiple times with same seed
-    set_seed(config.seed)
+    if config.seed is not None:
+        set_seed(config.seed)
     speaker1 = Speaker(config)
 
-    set_seed(config.seed)
+    if config.seed is not None:
+        set_seed(config.seed)
     speaker2 = Speaker(config)
 
     # Agents should have identical parameters
@@ -178,10 +182,12 @@ def test_reproducible_agent_initialization() -> None:
     input_dim = TOTAL_ATTRIBUTES
     object_encoding = torch.randn(batch_size, input_dim)
 
-    set_seed(config.seed)
+    if config.seed is not None:
+        set_seed(config.seed)
     logits1, tokens1, _, _ = speaker1(object_encoding)
 
-    set_seed(config.seed)
+    if config.seed is not None:
+        set_seed(config.seed)
     logits2, tokens2, _, _ = speaker2(object_encoding)
 
     # Results should be identical
@@ -227,7 +233,8 @@ def test_training_mode_stochastic_behavior(
     deterministic_config: CommunicationConfig,
 ) -> None:
     """Test that training mode produces stochastic behavior (different from eval)."""
-    set_seed(deterministic_config.seed)
+    if deterministic_config.seed is not None:
+        set_seed(deterministic_config.seed)
 
     speaker = Speaker(deterministic_config)
     channel = DiscreteChannel(deterministic_config)
@@ -238,13 +245,15 @@ def test_training_mode_stochastic_behavior(
 
     # Training mode (stochastic)
     speaker.train()
-    set_seed(deterministic_config.seed)
+    if deterministic_config.seed is not None:
+        set_seed(deterministic_config.seed)
     logits_train, tokens_train, _, _ = speaker(object_encoding)
     channel_tokens_train = channel.send(logits_train)
 
     # Evaluation mode (deterministic)
     speaker.eval()
-    set_seed(deterministic_config.seed)
+    if deterministic_config.seed is not None:
+        set_seed(deterministic_config.seed)
     logits_eval, tokens_eval, _, _ = speaker(object_encoding)
     channel_tokens_eval = channel.send(logits_eval)
 

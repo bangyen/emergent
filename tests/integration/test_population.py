@@ -9,14 +9,14 @@ import torch
 from unittest.mock import patch, MagicMock
 from typing import Any
 
-from langlab.experiments.population import (
+from src.langlab.experiments.population import (
     PopulationConfig,
     AgentPair,
     PopulationManager,
     train_population,
 )
-from langlab.core.agents import Speaker, Listener
-from langlab.core.config import CommunicationConfig
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.core.config import CommunicationConfig
 
 
 class TestPopulationConfig:

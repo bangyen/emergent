@@ -10,7 +10,7 @@ import torch
 # import pytest
 from unittest.mock import Mock, patch
 
-from langlab.experiments.contact import (
+from src.langlab.experiments.contact import (
     ContactExperiment,
     ContactConfig,
     train_contact_experiment,
