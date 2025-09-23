@@ -130,8 +130,7 @@ class DiscreteChannel:
             )
         if gesture_size != self.config.gesture_size:
             raise ValueError(
-                f"Expected gesture_size={self.config.gesture_size}, "
-                f"got {gesture_size}"
+                f"Expected gesture_size={self.config.gesture_size}, got {gesture_size}"
             )
 
         # Sample tokens

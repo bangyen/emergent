@@ -174,7 +174,6 @@ def test_run_ablation_suite_experiment_id_format() -> None:
     ) as mock_zipf, patch(
         "torch.load"
     ) as mock_load:
-
         mock_eval.return_value = {
             "train": {"acc": 0.8},
             "iid": {"acc": 0.75},

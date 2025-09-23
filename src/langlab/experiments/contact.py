@@ -283,7 +283,9 @@ class ContactExperiment:
 
         # Create evaluation dataset
         eval_dataset = ReferentialGameDataset(
-            n_scenes=1000, k=self.config.k, seed=42  # Fixed size for evaluation
+            n_scenes=1000,
+            k=self.config.k,
+            seed=42,  # Fixed size for evaluation
         )
         eval_dataloader = DataLoader(
             eval_dataset, batch_size=self.config.batch_size, shuffle=False

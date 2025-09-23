@@ -231,7 +231,6 @@ class TestHeatmapIO:
         ), patch(
             "seaborn.heatmap"
         ):
-
             experiment._create_heatmap()
 
             # Check that savefig was called with correct path

@@ -137,7 +137,7 @@ def train_ensemble(
 
     for i in range(n_models):
         seed = base_seed + i * 1000
-        logger.info(f"Training model {i+1}/{n_models} with seed {seed}")
+        logger.info(f"Training model {i + 1}/{n_models} with seed {seed}")
 
         # Train individual model
         train(
@@ -202,9 +202,9 @@ def train_ensemble(
             )
             speaker.load_state_dict(checkpoint["speaker_state_dict"])
             listener.load_state_dict(checkpoint["listener_state_dict"])
-            logger.info(f"Loaded checkpoint for model {i+1}")
+            logger.info(f"Loaded checkpoint for model {i + 1}")
         else:
-            logger.warning(f"No checkpoint found for model {i+1}")
+            logger.warning(f"No checkpoint found for model {i + 1}")
 
         speakers.append(speaker)
         listeners.append(listener)

@@ -330,8 +330,9 @@ class Listener(nn.Module):
         Returns:
             Tensor of shape (batch_size, num_candidates) with probabilities over candidates.
         """
-        batch_size, num_candidates = candidate_objects.size(0), candidate_objects.size(
-            1
+        batch_size, num_candidates = (
+            candidate_objects.size(0),
+            candidate_objects.size(1),
         )
 
         # One-hot encode message tokens
@@ -710,8 +711,9 @@ class ListenerSeq(nn.Module):
         Returns:
             Tensor of shape (batch_size, num_candidates) with probabilities over candidates.
         """
-        batch_size, num_candidates = candidate_objects.size(0), candidate_objects.size(
-            1
+        batch_size, num_candidates = (
+            candidate_objects.size(0),
+            candidate_objects.size(1),
         )
 
         # Embed message tokens
