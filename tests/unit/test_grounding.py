@@ -6,16 +6,16 @@ functionality for grid world navigation tasks.
 
 import torch
 
-from langlab.training.grounding import (
+from src.langlab.training.grounding import (
     GroundedSpeaker,
     GroundedListener,
     GroundedEnvironment,
     GroundedEpisode,
     evaluate_grounded_performance,
 )
-from langlab.experiments.grid import Grid, Action, create_simple_grid
-from langlab.core.config import CommunicationConfig
-from langlab.training.train_grounded import CurriculumScheduler
+from src.langlab.experiments.grid import Grid, Action, create_simple_grid
+from src.langlab.core.config import CommunicationConfig
+from src.langlab.training.train_grounded import CurriculumScheduler
 
 
 class TestGroundedSpeaker:

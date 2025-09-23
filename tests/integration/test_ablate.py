@@ -8,7 +8,7 @@ import pytest
 from typing import Any
 from unittest.mock import patch
 
-from langlab.experiments.ablate import generate_parameter_grid, run_ablation_suite
+from src.langlab.experiments.ablate import generate_parameter_grid, run_ablation_suite
 
 
 def test_param_grid() -> None:
@@ -69,9 +69,9 @@ def test_param_grid_single_values() -> None:
     assert grid[0]["length_cost"] == 0.01
 
 
-@patch("langlab.experiments.ablate.train")
-@patch("langlab.experiments.ablate.evaluate_all_splits")
-@patch("langlab.experiments.ablate.compute_zipf_slope_from_checkpoint")
+@patch("src.langlab.experiments.ablate.train")
+@patch("src.langlab.experiments.ablate.evaluate_all_splits")
+@patch("src.langlab.experiments.ablate.compute_zipf_slope_from_checkpoint")
 def test_run_ablation_suite_mock(
     mock_zipf: Any, mock_eval: Any, mock_train: Any
 ) -> None:
@@ -128,16 +128,16 @@ def test_run_ablation_suite_parameter_validation() -> None:
     with pytest.raises((TypeError, ValueError, AttributeError)):
         run_ablation_suite(
             runs=1,
-            vocab_sizes=None,  # This should cause an error
+            vocab_sizes=[],  # Empty list should cause an error
             channel_noise_levels=[0.0],
             length_costs=[0.0],
         )
 
 
-@patch("langlab.experiments.ablate.os.makedirs")
-@patch("langlab.experiments.ablate.train")
-@patch("langlab.experiments.ablate.evaluate_all_splits")
-@patch("langlab.experiments.ablate.compute_zipf_slope_from_checkpoint")
+@patch("src.langlab.experiments.ablate.os.makedirs")
+@patch("src.langlab.experiments.ablate.train")
+@patch("src.langlab.experiments.ablate.evaluate_all_splits")
+@patch("src.langlab.experiments.ablate.compute_zipf_slope_from_checkpoint")
 def test_run_ablation_suite_directory_creation(
     mock_zipf: Any, mock_eval: Any, mock_train: Any, mock_makedirs: Any
 ) -> None:
@@ -165,10 +165,10 @@ def test_run_ablation_suite_directory_creation(
 
 def test_run_ablation_suite_experiment_id_format() -> None:
     """Test that experiment IDs are formatted correctly."""
-    with patch("langlab.experiments.ablate.train"), patch(
-        "langlab.analysis.eval.evaluate_all_splits"
+    with patch("src.langlab.experiments.ablate.train"), patch(
+        "src.langlab.analysis.eval.evaluate_all_splits"
     ) as mock_eval, patch(
-        "langlab.experiments.ablate.compute_zipf_slope_from_checkpoint"
+        "src.langlab.experiments.ablate.compute_zipf_slope_from_checkpoint"
     ) as mock_zipf, patch(
         "torch.load"
     ) as mock_load:

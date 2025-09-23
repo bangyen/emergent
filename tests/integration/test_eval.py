@@ -9,9 +9,9 @@ import torch
 import tempfile
 import os
 
-from langlab.analysis.eval import evaluate, evaluate_all_splits
-from langlab.core.config import CommunicationConfig
-from langlab.core.agents import Speaker, Listener
+from src.langlab.analysis.eval import evaluate, evaluate_all_splits
+from src.langlab.core.config import CommunicationConfig
+from src.langlab.core.agents import Speaker, Listener
 
 
 class TestEvaluation:

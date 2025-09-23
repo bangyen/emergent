@@ -9,8 +9,8 @@ import csv
 import math
 from pathlib import Path
 
-from langlab.training.train import train
-from langlab.utils.utils import get_logger
+from src.langlab.training.train import train
+from src.langlab.utils.utils import get_logger
 
 logger = get_logger(__name__)
 

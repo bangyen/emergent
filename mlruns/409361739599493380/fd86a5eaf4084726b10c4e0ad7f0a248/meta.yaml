@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/bangyen/Documents/repos/emergent/mlruns/409361739599493380/fd86a5eaf4084726b10c4e0ad7f0a248/artifacts
+end_time: 1758663105668
+entry_point_name: ''
+experiment_id: '409361739599493380'
+lifecycle_stage: active
+run_id: fd86a5eaf4084726b10c4e0ad7f0a248
+run_name: train_k5_v16_l2_seed7
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1758663104707
+status: 3
+tags: []
+user_id: bangyen

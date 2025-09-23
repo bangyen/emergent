@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any
 import os
 import torch
 
-from langlab.analysis.analysis import (
+from src.langlab.analysis.analysis import (
     load_training_logs,
 )
 from collections import Counter

@@ -10,12 +10,12 @@ import torch
 import json
 from unittest.mock import patch
 
-from langlab.core.agents import Speaker, Listener
-from langlab.data.data import ReferentialGameDataset
-from langlab.data.world import sample_scene, make_object
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.data.data import ReferentialGameDataset
+from src.langlab.data.world import sample_scene, make_object
 
 # Imports moved inside test methods to ensure proper mocking
-from langlab.analysis.report import create_report
+from src.langlab.analysis.report import create_report
 
 
 @pytest.mark.integration

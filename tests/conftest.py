@@ -11,10 +11,10 @@ import torch
 from typing import Dict, List, Tuple, Any, Generator
 from unittest.mock import patch
 
-from langlab.core.config import CommunicationConfig
-from langlab.data.world import make_object, sample_scene
-from langlab.core.agents import Speaker, Listener
-from langlab.data.data import ReferentialGameDataset
+from src.langlab.core.config import CommunicationConfig
+from src.langlab.data.world import make_object, sample_scene
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.data.data import ReferentialGameDataset
 
 
 @pytest.fixture

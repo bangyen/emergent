@@ -12,7 +12,7 @@ import pandas as pd
 from typing import Any
 from unittest.mock import patch
 
-from langlab.analysis.report import (
+from src.langlab.analysis.report import (
     load_experiment_results,
     aggregate_results,
     save_aggregated_csv,

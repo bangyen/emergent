@@ -6,9 +6,9 @@ generation in the population-based cultural transmission system.
 
 import torch
 
-from langlab.experiments.population import AgentPair
-from langlab.core.agents import Speaker, Listener
-from langlab.core.config import CommunicationConfig
+from src.langlab.experiments.population import AgentPair
+from src.langlab.core.agents import Speaker, Listener
+from src.langlab.core.config import CommunicationConfig
 
 
 class TestVocabStats:

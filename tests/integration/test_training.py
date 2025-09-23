@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 from unittest.mock import patch
 
-from langlab.core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from langlab.data.data import ReferentialGameDataset
-from langlab.training.train import train, MovingAverage
+from src.langlab.core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
+from src.langlab.data.data import ReferentialGameDataset
+from src.langlab.training.train import train, MovingAverage
 
 # Imports moved inside test methods to ensure proper mocking
 

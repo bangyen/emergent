@@ -7,8 +7,8 @@ functionality in generating and managing referential game data.
 import pytest
 import torch
 
-from langlab.data.data import ReferentialGameDataset
-from langlab.data.world import TOTAL_ATTRIBUTES
+from src.langlab.data.data import ReferentialGameDataset
+from src.langlab.data.world import TOTAL_ATTRIBUTES
 
 
 class TestReferentialGameDataset:
