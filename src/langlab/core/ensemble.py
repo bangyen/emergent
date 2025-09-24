@@ -103,7 +103,9 @@ class EnsembleSpeaker(nn.Module):
 
     def forward(
         self, object_encoding: torch.Tensor, temperature: float = 1.0
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
         """Generate ensemble messages.
 
         Args:
@@ -126,16 +128,23 @@ class EnsembleSpeaker(nn.Module):
             # Weight the predictions
             all_logits.append(logits * self.weights[i])
             all_tokens.append(tokens)
-            all_gesture_logits.append(gesture_logits * self.weights[i])
-            all_gesture_tokens.append(gesture_tokens)
+            if gesture_logits is not None:
+                all_gesture_logits.append(gesture_logits * self.weights[i])
+            if gesture_tokens is not None:
+                all_gesture_tokens.append(gesture_tokens)
 
         # Average logits and select most common tokens
         ensemble_logits = torch.stack(all_logits, dim=0).sum(dim=0)
-        ensemble_gesture_logits = torch.stack(all_gesture_logits, dim=0).sum(dim=0)
+
+        # Handle gesture logits if available
+        if all_gesture_logits:
+            ensemble_gesture_logits = torch.stack(all_gesture_logits, dim=0).sum(dim=0)
+        else:
+            ensemble_gesture_logits = None
 
         # For tokens, use majority voting or select from best model
         ensemble_tokens = all_tokens[0]  # Simple: use first model's tokens
-        ensemble_gesture_tokens = all_gesture_tokens[0]
+        ensemble_gesture_tokens = all_gesture_tokens[0] if all_gesture_tokens else None
 
         return (
             ensemble_logits,

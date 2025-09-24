@@ -60,9 +60,7 @@ emergent/
 
 - ✅ Full test coverage (`pytest`)
 - ✅ Reproducible seeds for experiments
-- ✅ Benchmark scripts included  
-- ✅ MLflow experiment tracking  
-- ✅ Automated CI/CD with GitHub Actions
+- ✅ Benchmark scripts included
 
 ## References
 
