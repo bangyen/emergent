@@ -58,7 +58,7 @@ emergent/
 
 ## Validation
 
-- ✅ Full test coverage (`pytest`)
+- ✅ Overall test coverage of 80% (`pytest`)
 - ✅ Reproducible seeds for experiments
 - ✅ Benchmark scripts included
 
