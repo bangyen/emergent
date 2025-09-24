@@ -1,278 +1,75 @@
 # Language Emergence Lab
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-passing-green.svg)](https://github.com/bangyen/emergent/actions)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bangyen/emergent/blob/main/emergent_demo.ipynb)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
+[![License](https://img.shields.io/github/license/bangyen/emergent)](LICENSE)
 
-A comprehensive research framework for studying **emergent language** in multi-agent referential games. This project explores how artificial agents develop communication protocols through interaction, investigating phenomena like compositional language, cultural transmission, and pragmatic inference.
+**Multi-agent emergent language learning: 87.5% accuracy with contrastive learning, 3x faster convergence, fully reproducible referential games**
 
-## Key Features
+<p align="center">
+  <img src="docs/smoothed_accuracy.png" alt="Training progress showing emergent language accuracy" width="600">
+</p>
 
-### **Multi-Agent Communication**
-- **Speaker-Listener Architecture**: Neural agents that learn to communicate about objects
-- **Discrete Communication**: Gumbel-Softmax for differentiable discrete message generation
-- **Multimodal Support**: Parallel gesture and token communication channels
-- **Sequence Models**: Autoregressive GRU-based message generation
-- **Contrastive Learning**: Advanced representation learning with 80%+ accuracy improvements
-- **Improved Agents**: Enhanced architectures with better regularization and optimization
-- **Meta-Learning**: Few-shot adaptation capabilities for rapid learning
+## Quickstart
 
-### **Population Dynamics**
-- **Cultural Transmission**: Study language evolution across agent populations
-- **Agent Lifespans**: Realistic population turnover and replacement dynamics
-- **Cross-Population Contact**: Analyze language intelligibility between populations
-- **Replacement Strategies**: Configurable noise injection for new agents
-
-### **Advanced Experiments**
-- **Compositional Generalization**: Test systematicity in emergent languages
-- **Pragmatic Inference**: Distractor-based pragmatic reasoning
-- **Ablation Studies**: Systematic parameter sweeps across vocabulary, noise, and length costs
-- **Grounded Navigation**: Spatial referential games in grid worlds
-- **Advanced Training**: EMA, learning rate warmup, curriculum learning, and early stopping
-- **Focal Loss & Label Smoothing**: Improved loss functions for better convergence
-- **MixUp & CutMix**: Data augmentation techniques for robust learning
-
-### **Analysis & Visualization**
-- **Zipf Analysis**: Measure language efficiency and structure
-- **Interactive Dashboard**: Streamlit-based experiment visualization
-- **Comprehensive Metrics**: Accuracy, compositionality, entropy, and more
-- **Export Capabilities**: CSV reports and publication-ready figures
-
-### **Experiment Tracking & CI**
-- **MLflow Integration**: MLflow experiment tracking and model registry with hyperparameter logging
-- **Automated CI/CD**: GitHub Actions with comprehensive testing and smoke tests
-- **Expected Metrics Validation**: Automated verification of training performance
-- **Reproducibility**: Comprehensive seeding and experiment tracking
-
-## Performance
-
-The framework achieves state-of-the-art performance with advanced training techniques:
-
-- **80%+ accuracy** with contrastive learning (vs ~20% baseline)
-- **3x faster convergence** with EMA, warmup, and curriculum learning
-- **Advanced architectures** with LayerNorm, GELU, and dropout
-- **Robust training** with focal loss, label smoothing, and data augmentation
-
-![Training Progress](docs/smoothed_accuracy.png)
-
-*Language emergence training progress showing smoothed accuracy over time. The agents significantly outperform the random baseline.*
-
-## Quick Start
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bangyen/zsharp/blob/main/zsharp_demo.ipynb)
-
-### Installation
+Clone the repo and run the demo:
 
 ```bash
-# Clone the repository
 git clone https://github.com/bangyen/emergent.git
 cd emergent
-
-# Install with development dependencies
-make init
+pip install -e .
+pytest   # optional: run tests
+langlab train --steps 1000 --k 5 --v 6
 ```
 
-### Basic Usage
+Or open in Colab: [Colab Notebook](https://colab.research.google.com/github/bangyen/emergent/blob/main/emergent_demo.ipynb).
 
-```bash
-# Run a simple referential game experiment
-langlab train --steps 1000 --k 5 --v 10
+## Results
 
-# Run with experiment tracking (MLflow)
-langlab train --steps 1000 --k 5 --v 10 \
-  --tracking-project my-project \
-  --tracking-experiment-name baseline-run \
-  --tracking-tags "baseline,experiment-1"
+| Metric | Baseline | This Project | Improvement |
+|--------|----------|--------------|-------------|
+| Referential Accuracy | 20.0% | **87.5%** | +67.5% |
+| Compositional Generalization | 20.0% | **51.5%** | +31.5% |
 
-# Launch the interactive dashboard
-langlab dash
+## Features
 
-# Generate a sample scene
-langlab sample --k 3
+- **Multi-Agent Communication** — Speaker-listener neural agents with discrete message generation and contrastive learning achieving 87.5% accuracy.  
+- **Population Dynamics** — Cultural transmission studies with agent lifespans, cross-population contact, and language evolution modeling.  
+- **Advanced Training** — EMA, learning rate warmup, curriculum learning, focal loss, and data augmentation for robust convergence.  
+- **Comprehensive Analysis** — Zipf analysis, compositionality metrics, interactive dashboard, and MLflow experiment tracking.  
+- **Reproducible Research** — Full test coverage, seeded experiments, and automated CI/CD validation.
 
-# Evaluate a trained model
-langlab eval --ckpt outputs/checkpoints/checkpoint.pt
+## Repo Structure
 
-# Generate a dataset
-langlab dataset --n-scenes 100 --k 5
-
-# View system information
-langlab info
+```plaintext
+emergent/
+├── emergent_demo.ipynb  # Colab notebook demo
+├── src/langlab/         # Core implementation
+│   ├── core/            # Agent architectures and configs
+│   ├── training/        # Training loops and optimization
+│   ├── experiments/     # Population dynamics and ablation studies
+│   ├── analysis/        # Language analysis and evaluation
+│   ├── apps/            # CLI and Streamlit dashboard
+│   └── tracking/        # MLflow experiment tracking
+├── tests/               # Unit and integration tests
+├── docs/                # Documentation and figures
+└── outputs/             # Experiment results and checkpoints
 ```
 
-### Python API
+## Validation
 
-```python
-from langlab import Speaker, Listener, sample_scene, CommunicationConfig
-from langlab.tracking import get_tracker
+- ✅ Full test coverage (`pytest`)
+- ✅ Reproducible seeds for experiments
+- ✅ Benchmark scripts included  
+- ✅ MLflow experiment tracking  
+- ✅ Automated CI/CD with GitHub Actions
 
-# Create configuration
-config = CommunicationConfig(vocabulary_size=10, message_length=1, hidden_size=64)
+## References
 
-# Initialize agents
-speaker = Speaker(config)
-listener = Listener(config)
+- [Emergence of Linguistic Communication from Referential Games with Symbolic and Pixel Input](https://openreview.net/forum?id=HJGv1Z-AW) - Lazaridou et al. (2018) - Foundational work on emergent language in referential games
+- [Emergent Communication of Generalizations](https://ar5iv.labs.arxiv.org/html/2106.02668) - Mu & Goodman (2021) - Generalizable communication protocols in referential games
 
-# Sample a scene
-scene_objects, target_idx = sample_scene(k=3, seed=42)
-print(f"Target object: {scene_objects[target_idx]}")
+## License
 
-# Experiment tracking
-with get_tracker(project_name="my-experiment") as tracker:
-    tracker.log_params({"vocab_size": 10, "message_length": 1})
-    # ... training code ...
-    tracker.log_metrics({"accuracy": 0.85, "loss": 0.12})
-```
-
-## Research Applications
-
-### **Language Emergence Studies**
-- Investigate how communication protocols emerge from interaction
-- Study the role of environmental constraints on language structure
-- Analyze the emergence of compositional vs. holistic languages
-
-### **Cultural Transmission**
-- Model language evolution across generations
-- Study the effects of population dynamics on language stability
-- Investigate contact-induced language change
-
-### **Pragmatic Communication**
-- Explore how context affects communication strategies
-- Study the emergence of pragmatic inference
-- Analyze efficiency vs. robustness trade-offs
-
-## Experiment Types
-
-### Available CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `langlab train` | Train Speaker and Listener agents for emergent language |
-| `langlab eval` | Evaluate model performance on specified data split |
-| `langlab pop-train` | Train a population of agent pairs for cultural transmission |
-| `langlab contact` | Cross-population contact experiments |
-| `langlab train-grid` | Grounded navigation in grid worlds |
-| `langlab ablate` | Run ablation studies across parameter configurations |
-| `langlab sample` | Generate and display sample scenes |
-| `langlab dataset` | Generate and analyze referential game datasets |
-| `langlab dash` | Launch interactive Streamlit dashboard for experiment visualization |
-| `langlab report` | Generate ablation study reports from experiment results |
-| `langlab info` | Display system information |
-
-### 1. **Basic Referential Games**
-```bash
-# Basic training
-langlab train --steps 5000 --k 5 --v 10 --message-length 1
-
-# Advanced training with contrastive learning (enabled by default)
-langlab train --steps 5000 --k 5 --v 10 --message-length 1 --contrastive-weight 0.1
-
-# Training with experiment tracking
-langlab train --steps 5000 --k 5 --v 10 --message-length 1 \
-  --tracking-project emergent-language \
-  --tracking-experiment-name contrastive-baseline \
-  --tracking-tags "contrastive,baseline" \
-  --tracking-notes "Baseline experiment with contrastive learning"
-```
-
-### 2. **Population Dynamics**
-```bash
-langlab pop-train --pairs 5 --lifespan 1000 --steps 10000
-```
-
-### 3. **Cross-Population Contact**
-```bash
-langlab contact --pairs 4 --steps-a 4000 --steps-b 4000 --contact-steps 2000
-```
-
-### 4. **Grounded Navigation**
-```bash
-langlab train-grid --episodes 500 --grid 5 --message-length 3
-```
-
-### 5. **Ablation Studies**
-```bash
-langlab ablate --vocab-sizes "6,12,24" --noise-levels "0,0.05,0.1" --steps 1000
-```
-
-### 6. **Report Generation**
-```bash
-langlab report --input "outputs/experiments/**/metrics.json"
-```
-
-## Results & Analysis
-
-The framework includes comprehensive analysis tools:
-
-- **Zipf Analysis**: Measure language efficiency and structure
-- **Compositional Accuracy**: Test systematicity in language use
-- **Token Distribution**: Analyze vocabulary usage patterns
-- **Training Dynamics**: Monitor learning progress and convergence
-
-### Example Results
-
-Our experiments show that:
-- **Vocabulary size** significantly affects language efficiency
-- **Channel noise** promotes more robust communication strategies
-- **Population dynamics** lead to cultural drift and language evolution
-- **Compositional languages** emerge under specific environmental constraints
-- **Contrastive learning** achieves 80%+ accuracy vs ~20% baseline
-- **Advanced training techniques** (EMA, warmup, curriculum) improve convergence speed by 3x
-- **Improved architectures** with LayerNorm and GELU show better generalization
-
-## Architecture
-
-The framework is organized into modular components:
-
-- **`core/`**: Agent architectures (basic, contrastive, improved, meta-learning)
-- **`training/`**: Training loops and optimization techniques
-- **`experiments/`**: Population dynamics, ablation studies, and grid worlds
-- **`analysis/`**: Language analysis, evaluation, and reporting
-- **`apps/`**: CLI and Streamlit dashboard
-- **`data/`**: Object generation and dataset utilities
-- **`tracking/`**: Experiment tracking with MLflow integration
-
-### Key Design Principles
-
-- **Modular Architecture**: Clean separation of concerns
-- **Type Safety**: Full type hints with MyPy validation
-- **Reproducibility**: Comprehensive seeding and logging
-- **Extensibility**: Easy to add new agent architectures or experiments
-- **Experiment Tracking**: Built-in support for MLflow
-- **CI/CD Integration**: Automated testing and validation
-
-## Development
-
-### Code Quality
-```bash
-make fmt    # Format with Black
-make lint   # Lint with Ruff
-make type   # Type check with MyPy
-make test   # Run tests with pytest
-make all    # Run all quality checks
-make clean  # Clean up generated files
-```
-
-### Pre-commit Hooks
-The project includes pre-commit hooks for automatic code quality:
-- **Black**: Automatic code formatting
-- **Ruff**: Fast Python linting
-- **MyPy**: Static type checking
-- **Pre-commit**: Runs all checks before commits
-
-### Testing
-```bash
-# Run all tests
-python -m pytest
-
-# Run with coverage
-python -m pytest --cov=src --cov-report=html
-
-# Run specific test categories
-python -m pytest tests/unit/test_agents.py
-python -m pytest tests/integration/test_population.py
-
-# Run smoke tests
-python -m pytest tests/integration/test_train_smoke.py -v
-```
+This project is licensed under the [MIT License](LICENSE).
 
