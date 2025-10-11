@@ -168,12 +168,37 @@ class TestEndToEndWorkflows:
             assert "csv_path" in report_info
             assert "summary_path" in report_info
 
-    @pytest.mark.skip(reason="Streamlit app removed, replaced with Flask dashboard")
-    def test_analysis_workflow(
-        self, sample_training_logs: Any, sample_message_tokens: Any
-    ) -> None:
-        """Test analysis workflow with mock data."""
-        pass
+    def test_dashboard_api_workflow(self) -> None:
+        """Test Flask dashboard API endpoints."""
+        from dashboard.main import app
+
+        client = app.test_client()
+
+        # Test main route
+        response = client.get("/")
+        assert response.status_code == 200
+        assert b"Language Emergence Lab" in response.data
+
+        # Test stats endpoint
+        response = client.get("/api/stats")
+        assert response.status_code == 200
+        data = response.json
+        assert data is not None
+        assert "total_experiments" in data
+
+        # Test experiments endpoint
+        response = client.get("/api/experiments")
+        assert response.status_code == 200
+        experiments = response.json
+        assert experiments is not None
+        assert isinstance(experiments, list)
+
+        # Test training logs endpoint
+        response = client.get("/api/training-logs")
+        assert response.status_code == 200
+        logs = response.json
+        assert logs is not None
+        assert isinstance(logs, list)
 
 
 @pytest.mark.integration
@@ -392,9 +417,25 @@ class TestEvaluationWorkflow:
             assert results["acc"] == 0.75
             assert results["entropy"] == 1.4
 
-    @pytest.mark.skip(reason="Streamlit app removed, replaced with Flask dashboard")
-    def test_analysis_pipeline_workflow(
-        self, sample_training_logs: Any, sample_message_tokens: Any
-    ) -> None:
-        """Test complete analysis pipeline workflow."""
-        pass
+    def test_dashboard_data_loading_pipeline(self) -> None:
+        """Test complete dashboard data loading pipeline."""
+        from dashboard.main import (
+            load_experiment_data,
+            load_training_logs,
+            EXPERIMENTS_DIR,
+        )
+
+        # Test training logs loading
+        logs = load_training_logs()
+        assert isinstance(logs, list)
+        # Should load data from available log files
+
+        # Test experiment data loading
+        if EXPERIMENTS_DIR.exists():
+            for exp_dir in EXPERIMENTS_DIR.iterdir():
+                if exp_dir.is_dir():
+                    data = load_experiment_data(exp_dir)
+                    # Either returns valid dict or None
+                    assert data is None or isinstance(data, dict)
+                    if data:
+                        assert "experiment_id" in data or "params" in data
