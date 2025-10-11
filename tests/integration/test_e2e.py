@@ -168,29 +168,12 @@ class TestEndToEndWorkflows:
             assert "csv_path" in report_info
             assert "summary_path" in report_info
 
+    @pytest.mark.skip(reason="Streamlit app removed, replaced with Flask dashboard")
     def test_analysis_workflow(
         self, sample_training_logs: Any, sample_message_tokens: Any
     ) -> None:
         """Test analysis workflow with mock data."""
-        # Test token distribution analysis
-        with patch("src.langlab.apps.app.analyze_token_distribution") as mock_analyze:
-            mock_analyze.return_value = {
-                "zipf_slope": -0.8,
-                "gini_coefficient": 0.3,
-                "vocabulary_size": 10,
-                "total_tokens": 100,
-            }
-
-            # Import and call the mocked function
-            from src.langlab.apps.app import analyze_token_distribution
-
-            analysis_results = analyze_token_distribution(
-                sample_message_tokens.tolist()
-            )
-            assert analysis_results["zipf_slope"] == -0.8
-            assert analysis_results["gini_coefficient"] == 0.3
-
-        # Skip compositional analysis test since function was removed
+        pass
 
 
 @pytest.mark.integration
@@ -409,28 +392,9 @@ class TestEvaluationWorkflow:
             assert results["acc"] == 0.75
             assert results["entropy"] == 1.4
 
+    @pytest.mark.skip(reason="Streamlit app removed, replaced with Flask dashboard")
     def test_analysis_pipeline_workflow(
         self, sample_training_logs: Any, sample_message_tokens: Any
     ) -> None:
         """Test complete analysis pipeline workflow."""
-        # Mock analysis functions
-        with patch(
-            "src.langlab.apps.app.analyze_token_distribution"
-        ) as mock_token_analysis:
-            mock_token_analysis.return_value = {
-                "zipf_slope": -0.8,
-                "gini_coefficient": 0.3,
-                "vocabulary_size": 10,
-                "total_tokens": 100,
-            }
-
-            # Skip compositional analysis test since function was removed
-
-            # Run analysis pipeline
-            # Import and call the mocked functions
-            from src.langlab.apps.app import analyze_token_distribution
-
-            token_results = analyze_token_distribution(sample_message_tokens.tolist())
-
-            # Verify results
-            assert token_results["zipf_slope"] == -0.8
+        pass
