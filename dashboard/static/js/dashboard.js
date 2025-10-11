@@ -105,19 +105,19 @@ function renderTrainingChart() {
     const ctx = document.getElementById('training-chart');
     
     const steps = trainingData.map((d, i) => d.step || d.episode || i);
-    const accuracy = trainingData.map(d => d.accuracy || d.success_rate || 0);
+    const reward = trainingData.map(d => d.avg_reward || 0);
     
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: steps,
             datasets: [{
-                label: 'Accuracy',
-                data: accuracy,
+                label: 'Avg Reward',
+                data: reward,
                 borderColor: COLORS.red,
                 backgroundColor: 'transparent',
                 borderWidth: 2,
-                pointRadius: 0,
+                pointRadius: 2,
                 tension: 0.1
             }]
         },
@@ -263,13 +263,13 @@ function renderTrainingTable() {
     trainingData.slice(0, 50).forEach((row, i) => {
         const tr = document.createElement('tr');
         const step = row.step || row.episode || i;
-        const acc = row.accuracy || row.success_rate || 0;
+        const reward = row.avg_reward || 0;
         const loss = row.total_loss || 0;
         const msgLen = row.avg_message_length || row.message_length || row.episode_length || 0;
         
         tr.innerHTML = `
             <td>${step}</td>
-            <td>${acc.toFixed(3)}</td>
+            <td>${reward.toFixed(3)}</td>
             <td>${loss.toFixed(3)}</td>
             <td>${msgLen.toFixed(2)}</td>
         `;
