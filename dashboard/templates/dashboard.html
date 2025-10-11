@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Emergence Lab</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1 class="logo">Language Emergence Lab</h1>
+            <nav class="nav">
+                <button class="nav-item active" data-view="overview">Overview</button>
+                <button class="nav-item" data-view="experiments">Experiments</button>
+                <button class="nav-item" data-view="training">Training</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <section id="overview" class="view active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Experiments</div>
+                    <div class="stat-value" id="total-experiments">—</div>
+                </div>
+                <div class="stat-card accent-red">
+                    <div class="stat-label">Train Accuracy</div>
+                    <div class="stat-value" id="train-accuracy">—</div>
+                </div>
+                <div class="stat-card accent-blue">
+                    <div class="stat-label">IID Accuracy</div>
+                    <div class="stat-value" id="iid-accuracy">—</div>
+                </div>
+                <div class="stat-card accent-yellow">
+                    <div class="stat-label">Compositional</div>
+                    <div class="stat-value" id="compo-accuracy">—</div>
+                </div>
+            </div>
+
+            <div class="charts-row">
+                <div class="chart-container">
+                    <h3 class="chart-title">Training Progress</h3>
+                    <canvas id="training-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3 class="chart-title">Accuracy Distribution</h3>
+                    <canvas id="accuracy-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="experiments" class="view">
+            <div class="section-header">
+                <h2 class="section-title">Experiment Results</h2>
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="high">High Acc</button>
+                    <button class="filter-btn" data-filter="low">Low Acc</button>
+                </div>
+            </div>
+            <div id="experiments-list" class="experiments-grid"></div>
+        </section>
+
+        <section id="training" class="view">
+            <div class="section-header">
+                <h2 class="section-title">Training Metrics</h2>
+            </div>
+            <div class="training-grid">
+                <div class="chart-container full-width">
+                    <h3 class="chart-title">Loss Over Time</h3>
+                    <canvas id="loss-chart"></canvas>
+                </div>
+                <div class="metrics-table-wrapper">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Accuracy</th>
+                                <th>Loss</th>
+                                <th>Msg Length</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metrics-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
+
