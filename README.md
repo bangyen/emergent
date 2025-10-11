@@ -49,7 +49,7 @@ emergent/
 │   ├── training/        # Training loops and optimization
 │   ├── experiments/     # Population dynamics and ablation studies
 │   ├── analysis/        # Language analysis and evaluation
-│   ├── apps/            # CLI and Streamlit dashboard
+│   ├── apps/            # CLI interface
 │   └── tracking/        # MLflow experiment tracking
 ├── tests/               # Unit and integration tests
 ├── docs/                # Documentation and figures

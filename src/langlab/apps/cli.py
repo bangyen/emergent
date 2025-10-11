@@ -570,47 +570,35 @@ def contact(
 
 
 @main.command()
-@click.option("--port", default=8888, help="Port to run the dashboard on")
-@click.option("--host", default="localhost", help="Host to run the dashboard on")
+@click.option("--port", default=5000, help="Port to run the dashboard on")
+@click.option("--host", default="0.0.0.0", help="Host to run the dashboard on")
 def dash(port: int, host: str) -> None:
-    """Launch the interactive Streamlit dashboard for visualizing language emergence."""
+    """Launch the Flask dashboard for visualizing language emergence."""
+    import os
     import subprocess
     import sys
-    import os
+    from pathlib import Path
 
-    # Get the path to the app.py file
-    app_path = os.path.join(os.path.dirname(__file__), "app.py")
+    dashboard_dir = Path(__file__).parent.parent.parent.parent / "dashboard"
+    app_path = dashboard_dir / "main.py"
 
-    if not os.path.exists(app_path):
-        click.echo("Error: Dashboard app not found", err=True)
+    if not app_path.exists():
+        click.echo("Error: Dashboard not found at dashboard/main.py", err=True)
         return
 
     logger.info(f"Launching dashboard on {host}:{port}")
     click.echo("Launching Language Emergence Dashboard...")
-    click.echo(f"Dashboard will be available at: http://{host}:{port}")
+    click.echo(f"Dashboard will be available at: http://localhost:{port}")
     click.echo("Press Ctrl+C to stop the dashboard")
 
     try:
-        # Launch Streamlit
-        cmd = [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            app_path,
-            "--server.headless",
-            "true",
-            "--server.port",
-            str(port),
-            "--server.address",
-            host,
-        ]
-        subprocess.run(cmd, check=True)
+        cmd = [sys.executable, str(app_path)]
+        env = {**os.environ, "FLASK_RUN_PORT": str(port), "FLASK_RUN_HOST": host}
+        subprocess.run(cmd, check=True, env=env)
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to launch dashboard: {e}")
         click.echo(
-            "Error: Failed to launch dashboard. Make sure Streamlit is installed.",
-            err=True,
+            "Error: Failed to launch dashboard. Make sure Flask is installed.", err=True
         )
     except KeyboardInterrupt:
         click.echo("\nDashboard stopped.")

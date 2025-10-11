@@ -227,27 +227,6 @@ def sample_ablation_params() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def mock_streamlit() -> Generator[Any, None, None]:
-    """Mock Streamlit for testing dashboard components."""
-    with patch("streamlit.set_page_config"), patch("streamlit.title"), patch(
-        "streamlit.markdown"
-    ), patch("streamlit.sidebar"), patch("streamlit.selectbox"), patch(
-        "streamlit.warning"
-    ), patch(
-        "streamlit.success"
-    ), patch(
-        "streamlit.error"
-    ), patch(
-        "streamlit.metric"
-    ), patch(
-        "streamlit.plotly_chart"
-    ), patch(
-        "streamlit.pyplot"
-    ) as mock_plt:
-        yield mock_plt
-
-
-@pytest.fixture
 def mock_torch_load() -> Generator[Any, None, None]:
     """Mock torch.load for testing checkpoint loading."""
     with patch("torch.load") as mock_load:

@@ -151,4 +151,9 @@ def get_stats() -> Response:
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    import os
+
+    host = os.environ.get("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.environ.get("FLASK_RUN_PORT", "5000"))
+
+    app.run(debug=True, host=host, port=port)
