@@ -1,4 +1,4 @@
-.PHONY: init fmt lint type test all clean
+.PHONY: init fmt lint type test all clean dashboard
 
 init: ## install tooling
 	python -m pip install -U pip
@@ -18,6 +18,9 @@ test: ## run all tests
 	python -m pytest
 
 all: fmt lint type test ## run all checks and tests
+
+dashboard: ## run dashboard
+	python dashboard/main.py
 
 clean: ## clean up generated files
 	rm -rf htmlcov/
