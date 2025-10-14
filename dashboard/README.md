@@ -28,10 +28,7 @@ Open `http://localhost:5000` in your browser.
 
 Modern, clean interface with sidebar navigation:
 - Font: Space Grotesk
-- Colors: Red (#E63946), Blue (#457B9D), Yellow (#F4A261)
+- Colors: Indigo (#6366F1), Emerald (#059669), Orange (#F97316)
 - Layout: Sidebar navigation with responsive grid-based content
 - Subtle shadows and smooth transitions
 - Mobile-friendly with collapsible sidebar
-
-Inspired by modern dashboard templates while maintaining unique branding for language emergence research.
-
