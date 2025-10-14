@@ -26,8 +26,12 @@ Open `http://localhost:5000` in your browser.
 
 ## Design
 
-Bauhaus-inspired interface with flat colors and geometric precision:
+Modern, clean interface with sidebar navigation:
 - Font: Space Grotesk
-- Colors: Black, Red (#E63946), Blue (#457B9D), Yellow (#F4A261)
-- Layout: Grid-based with sharp edges
+- Colors: Red (#E63946), Blue (#457B9D), Yellow (#F4A261)
+- Layout: Sidebar navigation with responsive grid-based content
+- Subtle shadows and smooth transitions
+- Mobile-friendly with collapsible sidebar
+
+Inspired by modern dashboard templates while maintaining unique branding for language emergence research.
 

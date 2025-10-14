@@ -9,75 +9,131 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <h1 class="logo">Language Emergence Lab</h1>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="8" cy="8" r="6" fill="#E63946"/>
+                    <circle cx="24" cy="8" r="6" fill="#457B9D"/>
+                    <circle cx="16" cy="20" r="6" fill="#F4A261"/>
+                    <path d="M8 8 L16 20" stroke="#1A1A1A" stroke-width="2"/>
+                    <path d="M24 8 L16 20" stroke="#1A1A1A" stroke-width="2"/>
+                </svg>
+                <span>Emergent</span>
+            </div>
+            
             <nav class="nav">
-                <button class="nav-item active" data-view="overview">Overview</button>
-                <button class="nav-item" data-view="experiments">Experiments</button>
-                <button class="nav-item" data-view="training">Training</button>
+                <button class="nav-item active" data-view="overview">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <rect x="2" y="2" width="6" height="6" stroke="currentColor" stroke-width="2"/>
+                        <rect x="12" y="2" width="6" height="6" stroke="currentColor" stroke-width="2"/>
+                        <rect x="2" y="12" width="6" height="6" stroke="currentColor" stroke-width="2"/>
+                        <rect x="12" y="12" width="6" height="6" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Overview</span>
+                </button>
+                
+                <button class="nav-item" data-view="experiments">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M4 2L8 10L12 6L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="4" cy="2" r="2" fill="currentColor"/>
+                        <circle cx="8" cy="10" r="2" fill="currentColor"/>
+                        <circle cx="12" cy="6" r="2" fill="currentColor"/>
+                        <circle cx="16" cy="14" r="2" fill="currentColor"/>
+                    </svg>
+                    <span>Experiments</span>
+                </button>
+                
+                <button class="nav-item" data-view="training">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <rect x="2" y="8" width="4" height="10" fill="currentColor"/>
+                        <rect x="8" y="4" width="4" height="14" fill="currentColor"/>
+                        <rect x="14" y="10" width="4" height="8" fill="currentColor"/>
+                    </svg>
+                    <span>Training</span>
+                </button>
             </nav>
-        </div>
-    </header>
-
-    <main class="main">
-        <section id="overview" class="view active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Experiments</div>
-                    <div class="stat-value" id="total-experiments">—</div>
-                </div>
-                <div class="stat-card accent-red">
-                    <div class="stat-label">Train Accuracy</div>
-                    <div class="stat-value" id="train-accuracy">—</div>
-                </div>
-                <div class="stat-card accent-blue">
-                    <div class="stat-label">IID Accuracy</div>
-                    <div class="stat-value" id="iid-accuracy">—</div>
-                </div>
-                <div class="stat-card accent-yellow">
-                    <div class="stat-label">Compositional</div>
-                    <div class="stat-value" id="compo-accuracy">—</div>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Active</span>
                 </div>
             </div>
-
-            <div class="charts-row">
-                <div class="chart-container">
-                    <h3 class="chart-title">Training Progress (Reward)</h3>
-                    <canvas id="training-chart"></canvas>
+        </aside>
+        
+        <main class="main-content">
+            <header class="header">
+                <h1 class="page-title">Dashboard Overview</h1>
+                <div class="header-actions">
+                    <button class="btn-primary" id="refresh-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M14 2V6H10" stroke="currentColor" stroke-width="2"/>
+                            <path d="M2 14V10H6" stroke="currentColor" stroke-width="2"/>
+                            <path d="M14 6C13.5 4 12 2.5 10 2C6 1 2 3 2 8C2 13 6 15 10 14C12 13.5 13.5 12 14 10" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        Refresh
+                    </button>
                 </div>
-                <div class="chart-container">
-                    <h3 class="chart-title">Accuracy Distribution</h3>
-                    <canvas id="accuracy-chart"></canvas>
+            </header>
+            
+            <!-- Overview View -->
+            <div class="view-container" id="overview-view">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Experiments</div>
+                        <div class="metric-value" id="total-experiments">—</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Train Accuracy</div>
+                        <div class="metric-value" id="train-accuracy">—</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">IID Accuracy</div>
+                        <div class="metric-value" id="iid-accuracy">—</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Compositional</div>
+                        <div class="metric-value" id="compo-accuracy">—</div>
+                    </div>
+                </div>
+                
+                <div class="chart-section">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Training Progress</h3>
+                        <canvas id="training-chart"></canvas>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <h3 class="chart-title">Loss Over Time</h3>
+                        <canvas id="loss-chart"></canvas>
+                    </div>
                 </div>
             </div>
-        </section>
-
-        <section id="experiments" class="view">
-            <div class="section-header">
-                <h2 class="section-title">Experiment Results</h2>
-                <div class="filter-bar">
-                    <button class="filter-btn active" data-filter="all">All</button>
-                    <button class="filter-btn" data-filter="high">High Acc</button>
-                    <button class="filter-btn" data-filter="low">Low Acc</button>
+            
+            <!-- Experiments View -->
+            <div class="view-container hidden" id="experiments-view">
+                <div class="section-header">
+                    <h2 class="section-title">Experiment Results</h2>
+                    <div class="filter-bar">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="high">High Acc</button>
+                        <button class="filter-btn" data-filter="low">Low Acc</button>
+                    </div>
                 </div>
+                <div id="experiments-list" class="experiments-grid"></div>
             </div>
-            <div id="experiments-list" class="experiments-grid"></div>
-        </section>
-
-        <section id="training" class="view">
-            <div class="section-header">
-                <h2 class="section-title">Training Metrics</h2>
-            </div>
-            <div class="training-grid">
-                <div class="chart-container full-width">
-                    <h3 class="chart-title">Loss Over Time</h3>
-                    <canvas id="loss-chart"></canvas>
-                </div>
-                <div class="metrics-table-wrapper">
-                    <table class="metrics-table">
+            
+            <!-- Training View -->
+            <div class="view-container hidden" id="training-view">
+                <div class="data-table">
+                    <table>
                         <thead>
                             <tr>
                                 <th>Step</th>
@@ -86,14 +142,17 @@
                                 <th>Msg Length</th>
                             </tr>
                         </thead>
-                        <tbody id="metrics-tbody"></tbody>
+                        <tbody id="metrics-tbody">
+                            <tr>
+                                <td colspan="4" class="loading">Loading metrics...</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
-        </section>
-    </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        </main>
+    </div>
+    
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>
