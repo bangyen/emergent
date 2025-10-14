@@ -5,10 +5,18 @@ and analysis of referential game results.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from flask import Flask, Response, jsonify, render_template
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -95,6 +103,7 @@ def load_training_logs() -> List[Dict[str, float]]:
 @app.route("/")
 def index() -> str:
     """Render the main dashboard page."""
+    logger.info("Dashboard accessed")
     return str(render_template("dashboard.html"))
 
 
@@ -110,6 +119,7 @@ def get_experiments() -> Response:
                 if data:
                     experiments.append(data)
 
+    logger.info(f"Retrieved {len(experiments)} experiments")
     return jsonify(experiments)
 
 
@@ -150,10 +160,17 @@ def get_stats() -> Response:
     )
 
 
+@app.route("/api/healthz")
+def health_check() -> Response:
+    """Health check endpoint for monitoring dashboard availability."""
+    return jsonify({"status": "healthy", "service": "language-emergence-dashboard"})
+
+
 if __name__ == "__main__":
     import os
 
     host = os.environ.get("FLASK_RUN_HOST", "0.0.0.0")
     port = int(os.environ.get("FLASK_RUN_PORT", "5000"))
 
+    logger.info(f"Starting Language Emergence Lab Dashboard on {host}:{port}")
     app.run(debug=True, host=host, port=port)
