@@ -185,16 +185,76 @@ class TestCLIIntegration:
         mock_report.assert_called_once()
 
     @patch("subprocess.run")
-    def test_dash_command_mock(self, mock_subprocess: Any) -> None:
+    @patch("pathlib.Path.exists")
+    def test_dash_command_mock(
+        self, mock_path_exists: Any, mock_subprocess: Any
+    ) -> None:
         """Test dashboard command with mocked subprocess."""
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_path_exists.return_value = True
 
         runner = CliRunner()
-        result = runner.invoke(main, ["dash", "--port", "8888"])
+        result = runner.invoke(main, ["dash", "--port", "8888", "--host", "127.0.0.1"])
 
-        # The command should start but we can't test the full execution
-        # Just verify it doesn't crash immediately
-        assert result.exit_code == 0 or result.exit_code == 1  # May exit due to mocking
+        # Verify the command executed successfully
+        assert result.exit_code == 0
+        assert "Launching Language Emergence Dashboard..." in result.output
+        assert "Dashboard will be available at: http://localhost:8888" in result.output
+
+        # Verify subprocess was called with correct environment
+        mock_subprocess.assert_called_once()
+        call_args = mock_subprocess.call_args
+        assert call_args[1]["env"]["FLASK_RUN_PORT"] == "8888"
+        assert call_args[1]["env"]["FLASK_RUN_HOST"] == "127.0.0.1"
+
+    @patch("pathlib.Path.exists")
+    def test_dash_command_missing_dashboard(self, mock_path_exists: Any) -> None:
+        """Test dashboard command when dashboard files are missing."""
+        mock_path_exists.return_value = False
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["dash"])
+
+        # Should exit gracefully with error message
+        assert result.exit_code == 0  # Click doesn't set error exit code
+        assert "Error: Dashboard not found at dashboard/main.py" in result.output
+
+    @patch("subprocess.run")
+    @patch("pathlib.Path.exists")
+    def test_dash_command_subprocess_error(
+        self, mock_path_exists: Any, mock_subprocess: Any
+    ) -> None:
+        """Test dashboard command when subprocess fails."""
+        from subprocess import CalledProcessError
+
+        mock_path_exists.return_value = True
+        mock_subprocess.side_effect = CalledProcessError(1, "flask")
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["dash"])
+
+        # Should handle error gracefully
+        assert result.exit_code == 0  # Click doesn't set error exit code
+        assert (
+            "Error: Failed to launch dashboard. Make sure Flask is installed."
+            in result.output
+        )
+
+    @patch("subprocess.run")
+    @patch("pathlib.Path.exists")
+    def test_dash_command_keyboard_interrupt(
+        self, mock_path_exists: Any, mock_subprocess: Any
+    ) -> None:
+        """Test dashboard command handles keyboard interrupt gracefully."""
+        mock_path_exists.return_value = True
+        mock_subprocess.side_effect = KeyboardInterrupt()
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["dash"])
+
+        # Should handle interrupt gracefully
+        assert result.exit_code == 0
+        assert "Dashboard stopped." in result.output
 
     def test_invalid_command(self) -> None:
         """Test that invalid commands return appropriate error."""
