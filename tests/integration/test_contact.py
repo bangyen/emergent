@@ -248,21 +248,27 @@ class TestHeatmapIO:
         test_matrix = np.array([[0.5, 0.6], [0.7, 0.8]])
         experiment.intelligibility_matrix = test_matrix
 
-        # Mock file operations
+        # Mock file operations and matplotlib to avoid font loading issues
         with patch("builtins.open", create=True) as mock_open:
             mock_file = Mock()
             mock_open.return_value.__enter__.return_value = mock_file
 
             with patch("numpy.savetxt") as mock_savetxt:
-                experiment.save_results()
+                with patch("seaborn.heatmap"):
+                    with patch("matplotlib.pyplot.savefig"):
+                        with patch("matplotlib.pyplot.figure"):
+                            with patch("matplotlib.pyplot.close"):
+                                experiment.save_results()
 
-                # Check that savetxt was called with correct parameters
-                mock_savetxt.assert_called_once()
-                call_args = mock_savetxt.call_args
-                assert call_args[0][0] == "outputs/M.csv"
-                np.testing.assert_array_equal(call_args[0][1], test_matrix)
-                assert call_args[1]["delimiter"] == ","
-                assert call_args[1]["fmt"] == "%.4f"
+                                # Check that savetxt was called with correct parameters
+                                mock_savetxt.assert_called_once()
+                                call_args = mock_savetxt.call_args
+                                assert call_args[0][0] == "outputs/M.csv"
+                                np.testing.assert_array_equal(
+                                    call_args[0][1], test_matrix
+                                )
+                                assert call_args[1]["delimiter"] == ","
+                                assert call_args[1]["fmt"] == "%.4f"
 
     def test_jsd_json_output(self) -> None:
         """Test that JSD score is saved in correct JSON format."""

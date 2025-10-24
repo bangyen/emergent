@@ -10,8 +10,8 @@ from typing import Optional
 from ..data.world import sample_scene, COLORS, SHAPES, SIZES
 from ..data.data import ReferentialGameDataset
 from ..utils.utils import get_logger, get_device
-from ..training.train import train
-from ..analysis.eval import evaluate
+from ..training.train import train as train_model
+from ..analysis.eval import evaluate as evaluate_model
 from ..experiments.population import train_population
 from ..experiments.contact import train_contact_experiment
 from ..training.train_grounded import train_grounded
@@ -206,7 +206,7 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     default=None,
     help="Notes for this experiment run",
 )
-def train_cmd(
+def train(
     steps: int,
     k: int,
     v: int,
@@ -296,7 +296,7 @@ def train_cmd(
         logger.info(f"Experiment name: {tracking_experiment_name}")
 
     try:
-        train(
+        train_model(
             n_steps=steps,
             k=k,
             v=v,
@@ -351,7 +351,7 @@ def train_cmd(
 @click.option("--n-scenes", default=1000, help="Number of scenes for evaluation")
 @click.option("--k", default=5, help="Number of objects per scene")
 @click.option("--batch-size", default=32, help="Batch size for evaluation")
-def eval_cmd(
+def eval(
     ckpt: str,
     split: str,
     heldout: str,
@@ -372,7 +372,7 @@ def eval_cmd(
     heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
 
     try:
-        results = evaluate(
+        results = evaluate_model(
             model_path=ckpt,
             split=split,
             heldout_pairs=heldout_pairs,

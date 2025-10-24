@@ -50,7 +50,7 @@ class TestCLIIntegration:
         assert "Available colors" in result.output
         assert "Device:" in result.output
 
-    @patch("src.langlab.apps.cli.train")
+    @patch("src.langlab.apps.cli.train_model")
     def test_train_command_mock(self, mock_train: Any) -> None:
         """Test train command with mocked training function."""
         mock_train.return_value = None
@@ -64,7 +64,7 @@ class TestCLIIntegration:
         assert "Training completed successfully!" in result.output
         mock_train.assert_called_once()
 
-    @patch("src.langlab.apps.cli.evaluate")
+    @patch("src.langlab.apps.cli.evaluate_model")
     def test_eval_command_mock(self, mock_eval: Any) -> None:
         """Test eval command with mocked evaluation function."""
         mock_eval.return_value = {"acc": 0.85}
@@ -325,7 +325,7 @@ class TestCLIErrorHandling:
         assert result.exit_code == 0  # CLI succeeds
         assert "Error:" in result.output  # But shows error message
 
-    @patch("src.langlab.apps.cli.train")
+    @patch("src.langlab.apps.cli.train_model")
     def test_training_error_handling(self, mock_train: Any) -> None:
         """Test that training errors are handled gracefully."""
         mock_train.side_effect = Exception("Training failed")
@@ -366,8 +366,8 @@ class TestCLIWorkflows:
         result2 = runner.invoke(main, ["sample", "--k", "3"])
         assert result2.exit_code == 0
 
-    @patch("src.langlab.apps.cli.train")
-    @patch("src.langlab.apps.cli.evaluate")
+    @patch("src.langlab.apps.cli.train_model")
+    @patch("src.langlab.apps.cli.evaluate_model")
     def test_train_to_eval_workflow(self, mock_eval: Any, mock_train: Any) -> None:
         """Test workflow from training to evaluation."""
         mock_train.return_value = None
