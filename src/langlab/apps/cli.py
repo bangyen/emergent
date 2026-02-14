@@ -14,6 +14,7 @@ from ..training.train import train as train_model
 from ..analysis.eval import evaluate as evaluate_model
 from ..experiments.population import train_population
 from ..experiments.contact import train_contact_experiment
+from ..experiments.topology import train_topology_experiment
 from ..training.train_grounded import train_grounded
 from ..experiments.ablate import run_ablation_suite
 from ..analysis.report import create_report
@@ -414,6 +415,9 @@ def eval(
 @click.option(
     "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
 )
+@click.option(
+    "--fitness", is_flag=True, help="Use fitness-proportional selection for replacement"
+)
 def pop_train(
     pairs: int,
     lifespan: int,
@@ -430,6 +434,7 @@ def pop_train(
     hidden_size: int,
     use_sequence_models: bool,
     entropy_weight: float,
+    fitness: bool,
 ) -> None:
     """Train a population of agent pairs for cultural transmission studies."""
     logger.info(
@@ -457,6 +462,7 @@ def pop_train(
             hidden_size=hidden_size,
             use_sequence_models=use_sequence_models,
             entropy_weight=entropy_weight,
+            use_fitness_selection=fitness,
         )
         click.echo("Population training completed successfully!")
 
@@ -566,6 +572,70 @@ def contact(
 
     except Exception as e:
         logger.error(f"Contact experiment failed: {e}")
+        click.echo(f"Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--steps", default=5000, help="Number of training steps")
+@click.option("--pairs", default=10, help="Number of agent pairs")
+@click.option(
+    "--topo",
+    "--topology",
+    "topology",
+    default="ring",
+    help="Topology type (ring/small-world/scale-free)",
+)
+@click.option("--p-rewire", default=0.1, help="Rewiring probability (small-world)")
+@click.option("--m-attach", default=2, help="Attachment count (scale-free)")
+@click.option("--lifespan", default=1000, help="Agent lifespan")
+@click.option("--crossplay", default=0.5, help="Crossplay probability")
+@click.option("--k", default=5, help="Objects per scene")
+@click.option("--v", default=10, help="Vocabulary size")
+@click.option(
+    "--l", "--message-length", "message_length", default=1, help="Message length"
+)
+@click.option(
+    "--fitness", is_flag=True, default=True, help="Use fitness-based selection"
+)
+@click.option("--learning-rate", default=1e-3, help="Learning rate")
+@click.option("--seed", default=42, help="Random seed")
+def topo_train(
+    steps: int,
+    pairs: int,
+    topology: str,
+    p_rewire: float,
+    m_attach: int,
+    lifespan: int,
+    crossplay: float,
+    k: int,
+    v: int,
+    message_length: int,
+    fitness: bool,
+    learning_rate: float,
+    seed: int,
+) -> None:
+    """Train a networked population with social topology."""
+    logger.info(f"Starting topology training: {topology}, pairs={pairs}, steps={steps}")
+
+    try:
+        train_topology_experiment(
+            n_steps=steps,
+            n_pairs=pairs,
+            topology_type=topology,
+            p_rewire=p_rewire,
+            m_attach=m_attach,
+            lifespan=lifespan,
+            crossplay_prob=crossplay,
+            use_fitness_selection=fitness,
+            k=k,
+            v=v,
+            message_length=message_length,
+            learning_rate=learning_rate,
+            seed=seed,
+        )
+        click.echo("Topology training completed successfully!")
+    except Exception as e:
+        logger.error(f"Topology training failed: {e}")
         click.echo(f"Error: {e}", err=True)
 
 

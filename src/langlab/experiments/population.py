@@ -7,6 +7,7 @@ agents with lifespans to study cultural drift and transmission in emergent langu
 import os
 import csv
 import random
+import numpy as np
 from typing import Dict, List, Tuple, Optional, Union
 from dataclasses import dataclass
 from collections import defaultdict
@@ -57,6 +58,7 @@ class PopulationConfig:
     message_length: int = 1
     use_sequence_models: bool = False
     entropy_weight: float = 0.01
+    use_fitness_selection: bool = False
     seed: Optional[int] = None
 
     def __post_init__(self) -> None:
@@ -309,8 +311,25 @@ class PopulationManager:
         """Check for expired pairs and replace them."""
         for i, pair in enumerate(self.pairs):
             if pair.is_expired():
-                # Select a random parent pair for inheritance
-                parent_pair = random.choice(self.pairs) if len(self.pairs) > 1 else None
+                # Select a parent pair for inheritance
+                parent_pair = None
+                if len(self.pairs) > 1:
+                    if self.config.use_fitness_selection:
+                        # Fitness-proportional selection (Roulette Wheel)
+                        accuracies = [
+                            p.accuracy_history[-1] if p.accuracy_history else 0.0
+                            for p in self.pairs
+                        ]
+                        total_acc = sum(accuracies)
+                        if total_acc > 0:
+                            probs = [acc / total_acc for acc in accuracies]
+                            parent_idx = np.random.choice(len(self.pairs), p=probs)
+                            parent_pair = self.pairs[int(parent_idx)]
+                        else:
+                            parent_pair = random.choice(self.pairs)
+                    else:
+                        parent_pair = random.choice(self.pairs)
+
                 self._replace_agent_pair(i, parent_pair)
 
     def _select_interaction_pairs(self) -> List[Tuple[int, int]]:
@@ -553,6 +572,7 @@ def train_population(
     hidden_size: int = 64,
     use_sequence_models: bool = False,
     entropy_weight: float = 0.01,
+    use_fitness_selection: bool = False,
 ) -> None:
     """Train a population of agent pairs for cultural transmission studies.
 
@@ -589,6 +609,7 @@ def train_population(
         lifespan=lifespan,
         replacement_noise=replacement_noise,
         crossplay_prob=crossplay_prob,
+        use_fitness_selection=use_fitness_selection,
         batch_size=batch_size,
         learning_rate=learning_rate,
         hidden_size=hidden_size,

@@ -426,6 +426,7 @@ def compute_speaker_loss(
     baseline: float,
     entropy_weight: float = 0.01,
     length_weight: float = 0.0,
+    token_costs: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute REINFORCE loss for the Speaker with regularization.
 
@@ -479,13 +480,24 @@ def compute_speaker_loss(
     # Add regularization terms
     entropy_bonus = compute_entropy_bonus(speaker_logits)
 
-    # Get sampled tokens for length cost (approximate with argmax)
+    # Get sampled tokens for cost calculation (approximate with argmax)
     sampled_tokens = torch.argmax(speaker_logits, dim=-1)
+
+    # Standard length cost
     length_cost = compute_length_cost(sampled_tokens, vocab_size)
+
+    # Token-specific costs if provided
+    token_specific_cost = torch.tensor(0.0, device=speaker_logits.device)
+    if token_costs is not None:
+        # Compute cost for each sequence and average
+        token_specific_cost = token_costs[sampled_tokens].sum(dim=1).mean()
 
     # Combine losses
     total_loss = (
-        reinforce_loss - entropy_weight * entropy_bonus + length_weight * length_cost
+        reinforce_loss
+        - entropy_weight * entropy_bonus
+        + length_weight * length_cost
+        + token_specific_cost
     )
 
     return total_loss
@@ -586,6 +598,7 @@ def train_step(
     speaker_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     listener_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
     step: int = 1,
+    token_costs: Optional[torch.Tensor] = None,
     use_ema: bool = False,
     speaker_ema: Optional[Union[Speaker, SpeakerSeq, ContrastiveSpeaker]] = None,
     listener_ema: Optional[Union[Listener, ListenerSeq, ContrastiveListener]] = None,
@@ -701,6 +714,7 @@ def train_step(
         speaker_baseline.average,
         entropy_weight,
         length_weight,
+        token_costs,
     )
 
     # Combined loss
@@ -1161,6 +1175,7 @@ def train(
             speaker_scheduler,
             listener_scheduler,
             step + 1,  # Pass the step number for scheduler stepping
+            None,  # token_costs (not supported in this path yet)
             use_ema,
             speaker_ema,
             listener_ema,
