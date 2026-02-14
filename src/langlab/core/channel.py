@@ -27,6 +27,8 @@ class DiscreteChannel:
 
     def __init__(self, config: CommunicationConfig):
         self.config = config
+        # Initialize default costs (can be modified for experimental purposes)
+        self.token_costs = torch.ones(config.vocabulary_size)
 
     def send(
         self, speaker_logits: torch.Tensor, temperature: float = 1.0
@@ -207,3 +209,28 @@ class DiscreteChannel:
             Tuple of (min_gesture, max_gesture) representing the valid range [0, gesture_size-1].
         """
         return (0, self.config.gesture_size - 1)
+
+    def compute_message_cost(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """Compute the total cost of a message based on token-specific costs.
+
+        Args:
+            token_ids: Tensor of shape (batch_size, message_length) containing token IDs.
+
+        Returns:
+            Tensor of shape (batch_size,) containing the total cost for each message.
+        """
+        # Ensure token_costs is on the same device as token_ids
+        costs = self.token_costs.to(token_ids.device)
+        return costs[token_ids].sum(dim=1)
+
+    def set_token_costs(self, costs: torch.Tensor) -> None:
+        """Set custom costs for tokens.
+
+        Args:
+            costs: Tensor of shape (vocabulary_size,) containing costs for each token.
+        """
+        if costs.shape[0] != self.config.vocabulary_size:
+            raise ValueError(
+                f"Cost tensor must have size {self.config.vocabulary_size}"
+            )
+        self.token_costs = costs
