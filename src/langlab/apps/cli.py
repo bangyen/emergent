@@ -1,24 +1,16 @@
-"""Command-line interface for the Language Emergence Lab.
+"""Simplified Command-line interface for the Language Emergence Lab.
 
-This module provides a CLI for running experiments and exploring the
-referential game framework from the command line.
+This module provides a strictly essential CLI for training and evaluating
+emergent language models in referential games.
 """
 
 import click
 from typing import Optional
 
-from ..data.world import sample_scene, COLORS, SHAPES, SIZES
-from ..data.data import ReferentialGameDataset
-from ..utils.utils import get_logger, get_device
+from ..data.world import sample_scene
+from ..utils.utils import get_logger
 from ..training.train import train as train_model
 from ..analysis.eval import evaluate as evaluate_model
-from ..experiments.population import train_population
-from ..experiments.contact import train_contact_experiment
-from ..experiments.topology import train_topology_experiment
-from ..training.train_grounded import train_grounded
-from ..experiments.ablate import run_ablation_suite
-from ..analysis.report import create_report
-
 
 logger = get_logger(__name__)
 
@@ -26,10 +18,9 @@ logger = get_logger(__name__)
 @click.group()
 @click.version_option()
 def main() -> None:
-    """Language Emergence Lab - studying proto-language in referential games.
+    """Language Emergence Lab - Minimalist core.
 
-    This CLI provides tools for exploring referential games and proto-language
-    emergence in multi-agent systems.
+    Focused strictly on training and evaluating Speaker/Listener agents.
     """
     pass
 
@@ -39,52 +30,11 @@ def main() -> None:
 @click.option("--seed", default=42, help="Random seed for reproducible generation")
 def sample(k: int, seed: int) -> None:
     """Generate and display a sample scene."""
-    logger.info(f"Generating scene with {k} objects (seed={seed})")
 
-    try:
-        scene_objects, target_idx = sample_scene(k, seed)
-
-        click.echo(f"\nScene with {k} objects:")
-        for i, obj in enumerate(scene_objects):
-            marker = " (TARGET)" if i == target_idx else ""
-            click.echo(f"  {i}: {obj['color']} {obj['size']} {obj['shape']}{marker}")
-
-        click.echo(f"\nTarget object index: {target_idx}")
-
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--n-scenes", default=100, help="Number of scenes to generate")
-@click.option("--k", default=3, help="Number of objects per scene")
-@click.option("--seed", default=42, help="Random seed for reproducible generation")
-def dataset(n_scenes: int, k: int, seed: int) -> None:
-    """Generate and analyze a referential game dataset."""
-    logger.info(
-        f"Creating dataset with {n_scenes} scenes, {k} objects each (seed={seed})"
-    )
-
-    try:
-        dataset = ReferentialGameDataset(n_scenes, k, seed)
-
-        click.echo("\nDataset created:")
-        click.echo(f"  Scenes: {len(dataset)}")
-        click.echo(f"  Objects per scene: {k}")
-        click.echo(f"  Object encoding dimension: {dataset[0][0].shape[1]}")
-
-        # Show first scene
-        scene_tensor, target_idx, candidates = dataset[0]
-        click.echo("\nFirst scene:")
-        click.echo(f"  Scene tensor shape: {scene_tensor.shape}")
-        click.echo(f"  Target index: {target_idx}")
-
-        # Analyze target distribution
-        target_indices = [dataset[i][1] for i in range(min(10, len(dataset)))]
-        click.echo(f"  Target indices (first 10): {target_indices}")
-
-    except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
+    scene_objects, target_idx = sample_scene(k, seed)
+    click.echo(f"\nTarget object index: {target_idx}")
+    for i, obj in enumerate(scene_objects):
+        click.echo(f"  {i}: {obj}")
 
 
 @main.command()
@@ -95,779 +45,51 @@ def dataset(n_scenes: int, k: int, seed: int) -> None:
     "--l", "--message-length", "message_length", default=2, help="Message length"
 )
 @click.option("--seed", default=7, help="Random seed")
-@click.option("--log-every", default=100, help="Logging frequency")
-@click.option("--eval-every", default=500, help="Checkpoint frequency")
-@click.option("--lambda-speaker", default=1.0, help="Speaker loss weight")
-@click.option("--batch-size", default=8, help="Batch size")
+@click.option("--batch-size", default=32, help="Batch size")
 @click.option("--learning-rate", default=2e-4, help="Learning rate")
 @click.option("--hidden-size", default=128, help="Hidden dimension size")
-@click.option(
-    "--use-sequence-models",
-    is_flag=True,
-    help="Use sequence-aware models (SpeakerSeq/ListenerSeq)",
-)
-@click.option(
-    "--entropy-weight", default=0.05, help="Weight for entropy bonus regularization"
-)
-@click.option(
-    "--length-weight", default=0.0, help="Weight for length cost regularization"
-)
-@click.option(
-    "--heldout",
-    default=None,
-    help="Comma-separated held-out attribute pairs (e.g., 'blue,triangle')",
-)
-@click.option(
-    "--multimodal",
-    default=0,
-    help="Enable multimodal communication with gestures (0=disabled, 1=enabled)",
-)
-@click.option(
-    "--distractors",
-    default=0,
-    help="Number of distractor objects for pragmatic inference",
-)
-@click.option(
-    "--temperature-start",
-    default=2.0,
-    help="Starting temperature for Gumbel-Softmax sampling",
-)
-@click.option(
-    "--temperature-end",
-    default=0.5,
-    help="Ending temperature for Gumbel-Softmax sampling",
-)
-@click.option(
-    "--disable-early-stopping",
-    is_flag=True,
-    default=False,
-    help="Disable early stopping to prevent overfitting (enabled by default)",
-)
-@click.option(
-    "--early-stopping-patience",
-    default=50,
-    help="Number of evaluation steps to wait before early stopping",
-)
-@click.option(
-    "--early-stopping-min-delta",
-    default=0.001,
-    help="Minimum change to qualify as an improvement for early stopping",
-)
-@click.option(
-    "--disable-contrastive",
-    is_flag=True,
-    default=False,
-    help="Disable contrastive learning (enabled by default)",
-)
-@click.option(
-    "--contrastive-temperature",
-    default=0.07,
-    help="Temperature parameter for contrastive learning",
-)
-@click.option(
-    "--contrastive-weight",
-    default=0.1,
-    help="Weight for contrastive loss in total loss",
-)
-@click.option(
-    "--disable-ema",
-    is_flag=True,
-    default=False,
-    help="Disable Exponential Moving Average for model parameters (enabled by default)",
-)
-@click.option(
-    "--disable-warmup",
-    is_flag=True,
-    default=False,
-    help="Disable learning rate warmup (enabled by default)",
-)
-@click.option(
-    "--disable-curriculum",
-    is_flag=True,
-    default=False,
-    help="Disable curriculum learning with progressive difficulty (enabled by default)",
-)
-@click.option(
-    "--tracking-project",
-    default="langlab-emergent",
-    help="Project name for experiment tracking",
-)
-@click.option(
-    "--tracking-experiment-name",
-    default=None,
-    help="Name for this experiment run",
-)
-@click.option(
-    "--tracking-tags",
-    default=None,
-    help="Comma-separated tags for experiment tracking",
-)
-@click.option(
-    "--tracking-notes",
-    default=None,
-    help="Notes for this experiment run",
-)
+@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
 def train(
     steps: int,
     k: int,
     v: int,
     message_length: int,
     seed: int,
-    log_every: int,
-    eval_every: int,
-    lambda_speaker: float,
     batch_size: int,
     learning_rate: float,
     hidden_size: int,
     use_sequence_models: bool,
-    entropy_weight: float,
-    length_weight: float,
-    heldout: Optional[str],
-    multimodal: int,
-    distractors: int,
-    temperature_start: float,
-    temperature_end: float,
-    disable_early_stopping: bool,
-    early_stopping_patience: int,
-    early_stopping_min_delta: float,
-    disable_contrastive: bool,
-    contrastive_temperature: float,
-    contrastive_weight: float,
-    disable_ema: bool,
-    disable_warmup: bool,
-    disable_curriculum: bool,
-    tracking_project: str,
-    tracking_experiment_name: Optional[str],
-    tracking_tags: Optional[str],
-    tracking_notes: Optional[str],
 ) -> None:
     """Train Speaker and Listener agents for emergent language."""
-    logger.info(
-        f"Starting training: steps={steps}, k={k}, v={v}, message_length={message_length}, seed={seed}"
+    train_model(
+        n_steps=steps,
+        k=k,
+        v=v,
+        message_length=message_length,
+        seed=seed,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        hidden_size=hidden_size,
+        use_sequence_models=use_sequence_models,
     )
-    if use_sequence_models:
-        logger.info("Using sequence-aware models with autoregressive generation")
-    if multimodal:
-        logger.info("Using multimodal communication with gestures")
-    if distractors > 0:
-        logger.info(f"Using {distractors} distractor objects for pragmatic inference")
-    # Convert disable flags to enable flags
-    use_contrastive = not disable_contrastive
-    use_ema = not disable_ema
-    use_warmup = not disable_warmup
-    use_curriculum = not disable_curriculum
-    early_stopping = not disable_early_stopping
-
-    if use_contrastive:
-        logger.info(
-            f"Using contrastive learning with temperature={contrastive_temperature}, weight={contrastive_weight}"
-        )
-    if use_ema:
-        logger.info("Using Exponential Moving Average for model parameters")
-    if use_warmup:
-        logger.info("Using learning rate warmup")
-    if use_curriculum:
-        logger.info("Using curriculum learning with progressive difficulty")
-    if early_stopping:
-        logger.info(f"Using early stopping with patience={early_stopping_patience}")
-
-    # Parse heldout pairs
-    heldout_pairs = None
-    if heldout:
-        pairs = heldout.split(",")
-        if len(pairs) != 2:
-            click.echo(
-                "Error: heldout must be exactly two comma-separated attributes",
-                err=True,
-            )
-            return
-        heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
-        logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
-
-    # Parse tracking tags
-    tracking_tags_list = None
-    if tracking_tags:
-        tracking_tags_list = [tag.strip() for tag in tracking_tags.split(",")]
-        logger.info(f"Using tracking tags: {tracking_tags_list}")
-
-    # Log tracking configuration
-    logger.info("Experiment tracking enabled with MLflow")
-    logger.info(f"Project: {tracking_project}")
-    if tracking_experiment_name:
-        logger.info(f"Experiment name: {tracking_experiment_name}")
-
-    try:
-        train_model(
-            n_steps=steps,
-            k=k,
-            v=v,
-            message_length=message_length,
-            seed=seed,
-            log_every=log_every,
-            eval_every=eval_every,
-            lambda_speaker=lambda_speaker,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            hidden_size=hidden_size,
-            use_sequence_models=use_sequence_models,
-            entropy_weight=entropy_weight,
-            length_weight=length_weight,
-            heldout_pairs=heldout_pairs,
-            multimodal=bool(multimodal),
-            distractors=distractors,
-            temperature_start=temperature_start,
-            temperature_end=temperature_end,
-            use_early_stopping=early_stopping,
-            early_stopping_patience=early_stopping_patience,
-            early_stopping_min_delta=early_stopping_min_delta,
-            use_contrastive=use_contrastive,
-            contrastive_temperature=contrastive_temperature,
-            contrastive_weight=contrastive_weight,
-            use_ema=use_ema,
-            use_warmup=use_warmup,
-            use_curriculum=use_curriculum,
-            # Experiment tracking parameters
-            tracking_project=tracking_project,
-            tracking_experiment_name=tracking_experiment_name,
-            tracking_tags=tracking_tags_list,
-            tracking_notes=tracking_notes,
-        )
-        click.echo("Training completed successfully!")
-
-    except Exception as e:
-        logger.error(f"Training failed: {e}")
-        click.echo(f"Error: {e}", err=True)
+    click.echo("Training completed successfully!")
 
 
 @main.command()
 @click.option("--ckpt", required=True, help="Path to model checkpoint")
+@click.option("--split", default="iid", help="Data split to evaluate (train/iid/compo)")
 @click.option(
-    "--split", default="compo", help="Data split to evaluate (train/iid/compo)"
+    "--heldout", default=None, help="Comma-separated held-out attribute pairs"
 )
-@click.option(
-    "--heldout",
-    default="blue,triangle",
-    help="Comma-separated held-out attribute pairs",
-)
-@click.option("--n-scenes", default=1000, help="Number of scenes for evaluation")
-@click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--batch-size", default=32, help="Batch size for evaluation")
-def eval(
-    ckpt: str,
-    split: str,
-    heldout: str,
-    n_scenes: int,
-    k: int,
-    batch_size: int,
-) -> None:
+def eval(ckpt: str, split: str, heldout: Optional[str]) -> None:
     """Evaluate model performance on specified data split."""
-    logger.info(f"Evaluating model {ckpt} on {split} split")
+    heldout_pairs = None
+    if heldout:
+        pairs = heldout.split(",")
+        heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
 
-    # Parse heldout pairs
-    pairs = heldout.split(",")
-    if len(pairs) != 2:
-        click.echo(
-            "Error: heldout must be exactly two comma-separated attributes", err=True
-        )
-        return
-    heldout_pairs = [(pairs[0].strip(), pairs[1].strip())]
-
-    try:
-        results = evaluate_model(
-            model_path=ckpt,
-            split=split,
-            heldout_pairs=heldout_pairs,
-            n_scenes=n_scenes,
-            k=k,
-            batch_size=batch_size,
-        )
-
-        click.echo("\nEvaluation Results:")
-        click.echo(f"  Split: {split}")
-        click.echo(f"  Accuracy: {results['acc']:.4f}")
-
-    except Exception as e:
-        logger.error(f"Evaluation failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--pairs", default=5, help="Number of agent pairs in the population")
-@click.option("--lifespan", default=1000, help="Maximum age before agent replacement")
-@click.option("--steps", default=10000, help="Number of training steps")
-@click.option("--crossplay", default=0.1, help="Probability of cross-pair interactions")
-@click.option(
-    "--replacement-noise",
-    default=0.1,
-    help="Standard deviation of Gaussian noise for new agents",
-)
-@click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=16, help="Vocabulary size")
-@click.option(
-    "--l", "--message-length", "message_length", default=1, help="Message length"
-)
-@click.option("--seed", default=42, help="Random seed")
-@click.option("--log-every", default=100, help="Logging frequency")
-@click.option("--batch-size", default=8, help="Batch size")
-@click.option("--learning-rate", default=2e-4, help="Learning rate")
-@click.option("--hidden-size", default=128, help="Hidden dimension size")
-@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
-@click.option(
-    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
-)
-@click.option(
-    "--fitness", is_flag=True, help="Use fitness-proportional selection for replacement"
-)
-def pop_train(
-    pairs: int,
-    lifespan: int,
-    steps: int,
-    crossplay: float,
-    replacement_noise: float,
-    k: int,
-    v: int,
-    message_length: int,
-    seed: int,
-    log_every: int,
-    batch_size: int,
-    learning_rate: float,
-    hidden_size: int,
-    use_sequence_models: bool,
-    entropy_weight: float,
-    fitness: bool,
-) -> None:
-    """Train a population of agent pairs for cultural transmission studies."""
-    logger.info(
-        f"Starting population training: pairs={pairs}, lifespan={lifespan}, "
-        f"steps={steps}, crossplay={crossplay}, seed={seed}"
-    )
-
-    if use_sequence_models:
-        logger.info("Using sequence-aware models with autoregressive generation")
-
-    try:
-        train_population(
-            n_steps=steps,
-            n_pairs=pairs,
-            lifespan=lifespan,
-            crossplay_prob=crossplay,
-            replacement_noise=replacement_noise,
-            k=k,
-            v=v,
-            message_length=message_length,
-            seed=seed,
-            log_every=log_every,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            hidden_size=hidden_size,
-            use_sequence_models=use_sequence_models,
-            entropy_weight=entropy_weight,
-            use_fitness_selection=fitness,
-        )
-        click.echo("Population training completed successfully!")
-
-    except Exception as e:
-        logger.error(f"Population training failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--pairs", default=4, help="Number of agent pairs per population")
-@click.option(
-    "--steps-a",
-    default=4000,
-    help="Number of training steps for Stage A (separate training)",
-)
-@click.option(
-    "--steps-b",
-    default=4000,
-    help="Number of training steps for Stage B (contact phase)",
-)
-@click.option("--contact-steps", default=2000, help="Number of contact phase steps")
-@click.option(
-    "--p-contact", default=0.3, help="Probability of cross-population interactions"
-)
-@click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=16, help="Vocabulary size")
-@click.option(
-    "--l", "--message-length", "message_length", default=1, help="Message length"
-)
-@click.option("--seed-a", default=42, help="Random seed for Population A")
-@click.option("--seed-b", default=123, help="Random seed for Population B")
-@click.option("--log-every", default=100, help="Logging frequency")
-@click.option("--batch-size", default=8, help="Batch size")
-@click.option("--learning-rate", default=2e-4, help="Learning rate")
-@click.option("--hidden-size", default=128, help="Hidden dimension size")
-@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
-@click.option(
-    "--entropy-weight", default=0.01, help="Weight for entropy bonus regularization"
-)
-@click.option(
-    "--heldout-a", default="blue,triangle", help="Held-out pairs for Population A"
-)
-@click.option(
-    "--heldout-b", default="red,circle", help="Held-out pairs for Population B"
-)
-def contact(
-    pairs: int,
-    steps_a: int,
-    steps_b: int,
-    contact_steps: int,
-    p_contact: float,
-    k: int,
-    v: int,
-    message_length: int,
-    seed_a: int,
-    seed_b: int,
-    log_every: int,
-    batch_size: int,
-    learning_rate: float,
-    hidden_size: int,
-    use_sequence_models: bool,
-    entropy_weight: float,
-    heldout_a: str,
-    heldout_b: str,
-) -> None:
-    """Train two populations separately, then bring them into contact and measure intelligibility."""
-    logger.info(
-        f"Starting contact experiment: pairs={pairs}, steps_a={steps_a}, "
-        f"steps_b={steps_b}, contact_steps={contact_steps}, p_contact={p_contact}"
-    )
-
-    # Parse heldout pairs
-    def parse_heldout(heldout_str: str) -> list:
-        pairs = heldout_str.split(",")
-        if len(pairs) != 2:
-            raise ValueError("heldout must be exactly two comma-separated attributes")
-        return [(pairs[0].strip(), pairs[1].strip())]
-
-    try:
-        heldout_pairs_a = parse_heldout(heldout_a)
-        heldout_pairs_b = parse_heldout(heldout_b)
-
-        logger.info(f"Population A heldout pairs: {heldout_pairs_a}")
-        logger.info(f"Population B heldout pairs: {heldout_pairs_b}")
-
-        train_contact_experiment(
-            n_pairs=pairs,
-            steps_a=steps_a,
-            steps_b=steps_b,
-            contact_steps=contact_steps,
-            p_contact=p_contact,
-            k=k,
-            v=v,
-            message_length=message_length,
-            seed_a=seed_a,
-            seed_b=seed_b,
-            log_every=log_every,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            hidden_size=hidden_size,
-            use_sequence_models=use_sequence_models,
-            entropy_weight=entropy_weight,
-            heldout_pairs_a=heldout_pairs_a,
-            heldout_pairs_b=heldout_pairs_b,
-        )
-        click.echo("Contact experiment completed successfully!")
-
-    except Exception as e:
-        logger.error(f"Contact experiment failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--steps", default=5000, help="Number of training steps")
-@click.option("--pairs", default=10, help="Number of agent pairs")
-@click.option(
-    "--topo",
-    "--topology",
-    "topology",
-    default="ring",
-    help="Topology type (ring/small-world/scale-free)",
-)
-@click.option("--p-rewire", default=0.1, help="Rewiring probability (small-world)")
-@click.option("--m-attach", default=2, help="Attachment count (scale-free)")
-@click.option("--lifespan", default=1000, help="Agent lifespan")
-@click.option("--crossplay", default=0.5, help="Crossplay probability")
-@click.option("--k", default=5, help="Objects per scene")
-@click.option("--v", default=10, help="Vocabulary size")
-@click.option(
-    "--l", "--message-length", "message_length", default=1, help="Message length"
-)
-@click.option(
-    "--fitness", is_flag=True, default=True, help="Use fitness-based selection"
-)
-@click.option("--learning-rate", default=1e-3, help="Learning rate")
-@click.option("--seed", default=42, help="Random seed")
-def topo_train(
-    steps: int,
-    pairs: int,
-    topology: str,
-    p_rewire: float,
-    m_attach: int,
-    lifespan: int,
-    crossplay: float,
-    k: int,
-    v: int,
-    message_length: int,
-    fitness: bool,
-    learning_rate: float,
-    seed: int,
-) -> None:
-    """Train a networked population with social topology."""
-    logger.info(f"Starting topology training: {topology}, pairs={pairs}, steps={steps}")
-
-    try:
-        train_topology_experiment(
-            n_steps=steps,
-            n_pairs=pairs,
-            topology_type=topology,
-            p_rewire=p_rewire,
-            m_attach=m_attach,
-            lifespan=lifespan,
-            crossplay_prob=crossplay,
-            use_fitness_selection=fitness,
-            k=k,
-            v=v,
-            message_length=message_length,
-            learning_rate=learning_rate,
-            seed=seed,
-        )
-        click.echo("Topology training completed successfully!")
-    except Exception as e:
-        logger.error(f"Topology training failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--port", default=5000, help="Port to run the dashboard on")
-@click.option("--host", default="0.0.0.0", help="Host to run the dashboard on")
-def dash(port: int, host: str) -> None:
-    """Launch the Flask dashboard for visualizing language emergence."""
-    import os
-    import subprocess
-    import sys
-    from pathlib import Path
-
-    dashboard_dir = Path(__file__).parent.parent.parent.parent / "dashboard"
-    app_path = dashboard_dir / "main.py"
-
-    if not app_path.exists():
-        click.echo("Error: Dashboard not found at dashboard/main.py", err=True)
-        return
-
-    logger.info(f"Launching dashboard on {host}:{port}")
-    click.echo("Launching Language Emergence Dashboard...")
-    click.echo(f"Dashboard will be available at: http://localhost:{port}")
-    click.echo("Press Ctrl+C to stop the dashboard")
-
-    try:
-        cmd = [sys.executable, str(app_path)]
-        env = {**os.environ, "FLASK_RUN_PORT": str(port), "FLASK_RUN_HOST": host}
-        subprocess.run(cmd, check=True, env=env)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to launch dashboard: {e}")
-        click.echo(
-            "Error: Failed to launch dashboard. Make sure Flask is installed.", err=True
-        )
-    except KeyboardInterrupt:
-        click.echo("\nDashboard stopped.")
-
-
-@main.command()
-@click.option("--episodes", default=500, help="Number of training episodes")
-@click.option("--grid", default=5, help="Size of the grid world")
-@click.option(
-    "--l", "--message-length", "message_length", default=3, help="Message length"
-)
-@click.option("--v", default=16, help="Vocabulary size")
-@click.option("--seed", default=3, help="Random seed")
-@click.option("--max-steps", default=15, help="Maximum steps per episode")
-@click.option("--hidden-size", default=128, help="Hidden layer size")
-@click.option("--learning-rate", default=2e-4, help="Learning rate")
-@click.option("--entropy-weight", default=0.01, help="Weight for entropy bonus")
-@click.option("--log-every", default=50, help="Logging frequency")
-@click.option("--eval-every", default=100, help="Evaluation frequency")
-@click.option("--use-curriculum", is_flag=True, help="Use curriculum learning")
-def train_grid(
-    episodes: int,
-    grid: int,
-    message_length: int,
-    v: int,
-    seed: int,
-    max_steps: int,
-    hidden_size: int,
-    learning_rate: float,
-    entropy_weight: float,
-    log_every: int,
-    eval_every: int,
-    use_curriculum: bool,
-) -> None:
-    """Train grounded Speaker and Listener agents in grid world navigation."""
-    logger.info(
-        f"Starting grounded training: episodes={episodes}, grid_size={grid}, "
-        f"vocab={v}, message_length={message_length}, seed={seed}"
-    )
-
-    if use_curriculum:
-        logger.info("Using curriculum learning with progressive difficulty")
-
-    try:
-        train_grounded(
-            episodes=episodes,
-            grid_size=grid,
-            max_steps=max_steps,
-            vocabulary_size=v,
-            message_length=message_length,
-            hidden_size=hidden_size,
-            learning_rate=learning_rate,
-            entropy_weight=entropy_weight,
-            log_every=log_every,
-            eval_every=eval_every,
-            seed=seed,
-            use_curriculum=use_curriculum,
-        )
-        click.echo("Grounded training completed successfully!")
-
-    except Exception as e:
-        logger.error(f"Grounded training failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option("--runs", default=6, help="Number of runs to perform (currently unused)")
-@click.option(
-    "--vocab-sizes", default="6,12,24", help="Comma-separated vocabulary sizes"
-)
-@click.option(
-    "--noise-levels", default="0,0.05,0.1", help="Comma-separated channel noise levels"
-)
-@click.option(
-    "--length-costs", default="0,0.01,0.05", help="Comma-separated length cost weights"
-)
-@click.option("--steps", default=2000, help="Number of training steps per experiment")
-@click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--message-length", default=2, help="Message length")
-@click.option("--batch-size", default=8, help="Batch size")
-@click.option("--learning-rate", default=2e-4, help="Learning rate")
-@click.option("--hidden-size", default=128, help="Hidden dimension size")
-@click.option("--entropy-weight", default=0.01, help="Entropy bonus weight")
-@click.option("--seed", default=42, help="Base random seed")
-def ablate(
-    runs: int,
-    vocab_sizes: str,
-    noise_levels: str,
-    length_costs: str,
-    steps: int,
-    k: int,
-    message_length: int,
-    batch_size: int,
-    learning_rate: float,
-    hidden_size: int,
-    entropy_weight: float,
-    seed: int,
-) -> None:
-    """Run ablation studies across parameter configurations."""
-    logger.info("Starting ablation study suite")
-
-    # Parse parameter lists
-    try:
-        vocab_list = [int(x.strip()) for x in vocab_sizes.split(",")]
-        noise_list = [float(x.strip()) for x in noise_levels.split(",")]
-        length_list = [float(x.strip()) for x in length_costs.split(",")]
-    except ValueError as e:
-        click.echo(f"Error parsing parameters: {e}", err=True)
-        return
-
-    click.echo("Running ablation study with:")
-    click.echo(f"  Vocabulary sizes: {vocab_list}")
-    click.echo(f"  Noise levels: {noise_list}")
-    click.echo(f"  Length costs: {length_list}")
-    click.echo(
-        f"  Total experiments: {len(vocab_list) * len(noise_list) * len(length_list)}"
-    )
-
-    try:
-        results = run_ablation_suite(
-            runs=runs,
-            vocab_sizes=vocab_list,
-            channel_noise_levels=noise_list,
-            length_costs=length_list,
-            base_seed=seed,
-            n_steps=steps,
-            k=k,
-            message_length=message_length,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            hidden_size=hidden_size,
-            entropy_weight=entropy_weight,
-        )
-
-        click.echo("Ablation study completed successfully!")
-        click.echo("Results saved to outputs/experiments/")
-        click.echo(f"Total experiments completed: {len(results)}")
-
-    except Exception as e:
-        logger.error(f"Ablation study failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-@click.option(
-    "--input",
-    required=True,
-    help="Input pattern for experiment results (e.g., 'outputs/experiments/**/metrics.json')",
-)
-@click.option(
-    "--output-dir", default="outputs/summary", help="Output directory for report files"
-)
-@click.option("--no-charts", is_flag=True, help="Skip generating charts")
-def report(input: str, output_dir: str, no_charts: bool) -> None:
-    """Generate ablation study report from experiment results."""
-    logger.info(f"Creating report from: {input}")
-
-    try:
-        report_info = create_report(
-            input_pattern=input,
-            output_dir=output_dir,
-            create_charts=not no_charts,
-        )
-
-        if "error" in report_info:
-            click.echo(f"Error: {report_info['error']}", err=True)
-            return
-
-        click.echo("Report generated successfully!")
-        click.echo(f"CSV file: {report_info['csv_path']}")
-        click.echo(f"Summary: {report_info['summary_path']}")
-
-        if not no_charts:
-            click.echo("Charts generated:")
-            if "accuracy_chart" in report_info:
-                click.echo(f"  Accuracy bars: {report_info['accuracy_chart']}")
-            if "compo_chart" in report_info:
-                click.echo(f"  Compositional bars: {report_info['compo_chart']}")
-            if "heatmap" in report_info:
-                click.echo(f"  Heatmap: {report_info['heatmap']}")
-
-        click.echo(f"Total experiments processed: {report_info['total_experiments']}")
-
-    except Exception as e:
-        logger.error(f"Report generation failed: {e}")
-        click.echo(f"Error: {e}", err=True)
-
-
-@main.command()
-def info() -> None:
-    """Display information about the Language Emergence Lab."""
-    click.echo("Language Emergence Lab")
-    click.echo("====================")
-    click.echo(f"Available colors: {', '.join(COLORS)}")
-    click.echo(f"Available shapes: {', '.join(SHAPES)}")
-    click.echo(f"Available sizes: {', '.join(SIZES)}")
-    click.echo(f"Total possible objects: {len(COLORS) * len(SHAPES) * len(SIZES)}")
-    click.echo(f"Object encoding dimension: {len(COLORS) + len(SHAPES) + len(SIZES)}")
-    click.echo(f"Device: {get_device()}")
+    results = evaluate_model(model_path=ckpt, split=split, heldout_pairs=heldout_pairs)
+    click.echo(f"Evaluation Results: {results}")
 
 
 if __name__ == "__main__":

@@ -1,798 +1,66 @@
-"""Training module for emergent language experiments.
+"""Simplified training module for emergent language experiments.
 
-This module implements the training loop for referential games where language
-emerges through interaction between Speaker and Listener agents. It includes
-supervised learning for the Listener and REINFORCE for the Speaker.
+This module implements the core training loop for referential games where language
+emerges through interaction between Speaker and Listener agents.
 """
 
 import os
-import csv
-from typing import Dict, Tuple, Optional, Union, List
+from typing import Any, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from ..core.agents import Speaker, Listener, SpeakerSeq, ListenerSeq
-from ..core.contrastive_agents import (
-    ContrastiveSpeaker,
-    ContrastiveListener,
-    compute_contrastive_loss,
-)
+from ..core.agents import Listener, ListenerSeq, Speaker, SpeakerSeq
 from ..core.config import CommunicationConfig
-from ..data.data import ReferentialGameDataset, CompositionalDataset, DistractorDataset
-from ..utils.utils import get_logger, get_device, set_seed
-from ..tracking import get_tracker
+from ..data.data import ReferentialGameDataset
+from ..utils.utils import get_device, get_logger, set_seed
 
 logger = get_logger(__name__)
 
 
 class MovingAverage:
-    """Adaptive exponential moving average baseline for REINFORCE training.
+    """Simple exponential moving average baseline for REINFORCE."""
 
-    This class maintains an adaptive exponential moving average of rewards with
-    dynamic learning rate adjustment based on performance variance.
-    """
-
-    def __init__(
-        self, window_size: int = 100, alpha: float = 0.1, adaptive: bool = True
-    ):
-        """Initialize the adaptive exponential moving average baseline.
-
-        Args:
-            window_size: Number of recent rewards to include in the average (for compatibility).
-            alpha: Exponential decay factor (0 < alpha <= 1). Higher values give more weight to recent rewards.
-            adaptive: Whether to use adaptive learning rate adjustment.
-        """
-        self.window_size = window_size
+    def __init__(self, alpha: float = 0.1):
         self.alpha = alpha
-        self.adaptive = adaptive
         self._average = 0.0
         self.count = 0
-        self.variance = 0.0
-        self.recent_rewards: List[float] = []
 
     def update(self, reward: float) -> None:
-        """Update the adaptive exponential moving average with a new reward.
-
-        Args:
-            reward: The reward value to add to the moving average.
-        """
         self.count += 1
-        self.recent_rewards.append(reward)
-
-        # Keep only recent rewards for variance calculation
-        if len(self.recent_rewards) > 50:
-            self.recent_rewards.pop(0)
-
         if self.count == 1:
             self._average = reward
         else:
-            # Adaptive learning rate based on variance
-            if self.adaptive and len(self.recent_rewards) > 10:
-                current_variance = torch.var(torch.tensor(self.recent_rewards)).item()
-                # Increase learning rate when variance is high (unstable)
-                adaptive_alpha = min(0.2, self.alpha * (1 + current_variance))
-            else:
-                adaptive_alpha = self.alpha
-
-            self._average = (
-                1 - adaptive_alpha
-            ) * self._average + adaptive_alpha * reward
+            self._average = (1 - self.alpha) * self._average + self.alpha * reward
 
     @property
     def average(self) -> float:
-        """Get the current adaptive exponential moving average."""
         return self._average
 
 
-class EarlyStopping:
-    """Early stopping utility to prevent overfitting.
-
-    Monitors a metric (typically validation accuracy) and stops training
-    when the metric stops improving for a specified number of epochs.
-    """
-
-    def __init__(
-        self,
-        patience: int = 10,
-        min_delta: float = 0.001,
-        mode: str = "max",
-        restore_best_weights: bool = True,
-    ):
-        """Initialize early stopping.
-
-        Args:
-            patience: Number of epochs to wait for improvement before stopping.
-            min_delta: Minimum change to qualify as an improvement.
-            mode: 'max' for metrics to maximize, 'min' for metrics to minimize.
-            restore_best_weights: Whether to restore best weights when stopping.
-        """
-        self.patience = patience
-        self.min_delta = min_delta
-        self.mode = mode
-        self.restore_best_weights = restore_best_weights
-
-        self.best_score: Optional[float] = None
-        self.counter = 0
-        self.best_weights: Optional[Dict[str, torch.Tensor]] = None
-        self.early_stop = False
-
-    def __call__(self, score: float, model: torch.nn.Module) -> bool:
-        """Check if training should stop.
-
-        Args:
-            score: Current metric score.
-            model: Model to potentially save weights from.
-
-        Returns:
-            True if training should stop, False otherwise.
-        """
-        if self.best_score is None:
-            self.best_score = score
-            if self.restore_best_weights:
-                self.best_weights = {
-                    k: v.clone() for k, v in model.state_dict().items()
-                }
-        elif self._is_improvement(score):
-            self.best_score = score
-            self.counter = 0
-            if self.restore_best_weights:
-                self.best_weights = {
-                    k: v.clone() for k, v in model.state_dict().items()
-                }
-        else:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-                if self.restore_best_weights and self.best_weights is not None:
-                    model.load_state_dict(self.best_weights)
-
-        return self.early_stop
-
-    def _is_improvement(self, score: float) -> bool:
-        """Check if the score represents an improvement.
-
-        Args:
-            score: Current score to check.
-
-        Returns:
-            True if score is an improvement, False otherwise.
-        """
-        if self.best_score is None:
-            return True
-        if self.mode == "max":
-            return score > self.best_score + self.min_delta
-        else:
-            return score < self.best_score - self.min_delta
-
-
-def get_curriculum_k(step: int, n_steps: int, min_k: int = 2, max_k: int = 5) -> int:
-    """Get curriculum difficulty (k) based on training progress.
-
-    Args:
-        step: Current training step.
-        n_steps: Total training steps.
-        min_k: Minimum number of objects per scene.
-        max_k: Maximum number of objects per scene.
-
-    Returns:
-        Number of objects per scene for current step.
-    """
-    progress = step / n_steps
-    # Smooth curriculum: start with min_k, gradually increase to max_k
-    curriculum_k = min_k + (max_k - min_k) * progress
-    return int(curriculum_k)
-
-
-def get_adaptive_curriculum_k(
-    step: int,
-    n_steps: int,
-    min_k: int = 2,
-    max_k: int = 5,
-    accuracy_history: Optional[List[float]] = None,
-    patience: int = 500,
-) -> int:
-    """Get adaptive curriculum difficulty based on performance.
-
-    Args:
-        step: Current training step.
-        n_steps: Total number of training steps.
-        min_k: Minimum number of objects per scene.
-        max_k: Maximum number of objects per scene.
-        accuracy_history: List of recent accuracy values.
-        patience: Steps to wait before increasing difficulty.
-
-    Returns:
-        Number of objects to use in the current step.
-    """
-    if accuracy_history is None or len(accuracy_history) < patience:
-        # Fall back to linear curriculum if no history
-        return get_curriculum_k(step, n_steps, min_k, max_k)
-
-    # Check if accuracy has plateaued
-    recent_accuracy = accuracy_history[-patience:]
-    if len(recent_accuracy) >= patience:
-        accuracy_improvement = max(recent_accuracy) - min(recent_accuracy)
-        if accuracy_improvement < 0.05:  # Less than 5% improvement
-            # Increase difficulty
-            current_k = get_curriculum_k(step, n_steps, min_k, max_k)
-            return min(current_k + 1, max_k)
-
-    return get_curriculum_k(step, n_steps, min_k, max_k)
-
-
-def focal_loss(
-    inputs: torch.Tensor, targets: torch.Tensor, alpha: float = 1.0, gamma: float = 2.0
-) -> torch.Tensor:
-    """Compute focal loss for better handling of hard examples.
-
-    Args:
-        inputs: Logits tensor of shape (batch_size, num_classes).
-        targets: Target class indices of shape (batch_size,).
-        alpha: Weighting factor for rare class (default: 1.0).
-        gamma: Focusing parameter (default: 2.0).
-
-    Returns:
-        Scalar tensor containing the focal loss.
-    """
-    ce_loss = F.cross_entropy(inputs, targets, reduction="none")
-    pt = torch.exp(-ce_loss)
-    focal_loss: torch.Tensor = alpha * (1 - pt) ** gamma * ce_loss
-    return focal_loss.mean()
-
-
-def label_smoothing_loss(
-    inputs: torch.Tensor, targets: torch.Tensor, smoothing: float = 0.1
-) -> torch.Tensor:
-    """Compute label smoothing loss for better generalization.
-
-    Args:
-        inputs: Model predictions (logits).
-        targets: Ground truth labels.
-        smoothing: Label smoothing factor.
-
-    Returns:
-        Label smoothing loss value.
-    """
-    num_classes = inputs.size(-1)
-    log_preds = F.log_softmax(inputs, dim=-1)
-    true_dist = torch.zeros_like(log_preds)
-    true_dist.fill_(smoothing / (num_classes - 1))
-    true_dist.scatter_(1, targets.unsqueeze(1), 1.0 - smoothing)
-    return torch.mean(torch.sum(-true_dist * log_preds, dim=-1))
-
-
-def mixup_loss(
-    inputs: torch.Tensor, targets: torch.Tensor, alpha: float = 0.2
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
-    """Apply mixup augmentation and compute loss.
-
-    Args:
-        inputs: Input batch.
-        targets: Target batch.
-        alpha: Mixup parameter.
-
-    Returns:
-        Tuple of (mixed inputs, mixed targets, lambda).
-    """
-    if alpha > 0:
-        lam = torch.distributions.Beta(alpha, alpha).sample()
-    else:
-        lam = torch.tensor(1.0)
-
-    batch_size = inputs.size(0)
-    index = torch.randperm(batch_size)
-
-    mixed_inputs = lam * inputs + (1 - lam) * inputs[index, :]
-    y_a, y_b = targets, targets[index]
-    return mixed_inputs, y_a, y_b, lam.item()
-
-
-def add_noise_augmentation(
-    objects: torch.Tensor, noise_std: float = 0.1
-) -> torch.Tensor:
-    """Add Gaussian noise to object encodings for data augmentation.
-
-    Args:
-        objects: Object encodings tensor of shape (batch_size, num_objects, object_dim).
-        noise_std: Standard deviation of Gaussian noise.
-
-    Returns:
-        Augmented object encodings with added noise.
-    """
-    noise = torch.randn_like(objects) * noise_std
-    return objects + noise
-
-
-def random_object_permutation(
-    objects: torch.Tensor, target_indices: torch.Tensor
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Randomly permute object order in scenes for data augmentation.
-
-    Args:
-        objects: Object encodings tensor of shape (batch_size, num_objects, object_dim).
-        target_indices: Target indices tensor of shape (batch_size,).
-
-    Returns:
-        Tuple of (permuted_objects, updated_target_indices).
-    """
-    batch_size, num_objects = objects.size(0), objects.size(1)
-
-    # Generate random permutations for each batch
-    permutations = torch.stack([torch.randperm(num_objects) for _ in range(batch_size)])
-
-    # Apply permutations
-    permuted_objects = torch.gather(
-        objects, 1, permutations.unsqueeze(-1).expand(-1, -1, objects.size(-1))
-    )
-
-    # Update target indices
-    updated_target_indices = torch.gather(
-        permutations, 1, target_indices.unsqueeze(1)
-    ).squeeze(1)
-
-    return permuted_objects, updated_target_indices
-
-
-def compute_entropy_bonus(logits: torch.Tensor) -> torch.Tensor:
-    """Compute entropy bonus to encourage exploration in token distributions.
-
-    This function computes the entropy of token distributions at each position
-    to encourage the Speaker to maintain diversity in generated messages.
-
-    Args:
-        logits: Tensor of shape (batch_size, message_length, vocabulary_size) with logits.
-
-    Returns:
-        Scalar tensor containing the entropy bonus (negative entropy).
-    """
-    # Compute probabilities
-    probs = F.softmax(logits, dim=-1)
-
-    # Compute log probabilities
-    log_probs = F.log_softmax(logits, dim=-1)
-
-    # Compute entropy: -sum(p * log(p))
-    entropy = -(probs * log_probs).sum(dim=-1)  # (batch_size, message_length)
-
-    # Average across batch and sequence length
-    entropy_bonus = entropy.mean()
-
-    return entropy_bonus
-
-
-def compute_length_cost(message_tokens: torch.Tensor, vocab_size: int) -> torch.Tensor:
-    """Compute length cost to penalize longer messages.
-
-    This function computes a cost based on message length to encourage
-    more concise communication when using variable-length messages.
-
-    Args:
-        message_tokens: Tensor of shape (batch_size, message_length) with token indices.
-        vocab_size: Size of vocabulary (for EOS token detection).
-
-    Returns:
-        Scalar tensor containing the length cost.
-    """
-    batch_size, message_length = message_tokens.shape
-
-    # For fixed-length messages, we don't apply length cost
-    # This function is prepared for future variable-length extensions
-    length_cost = torch.tensor(0.0, device=message_tokens.device)
-
-    return length_cost
-
-
-def compute_listener_loss(
-    listener: Union[Listener, ListenerSeq, ContrastiveListener],
-    message_tokens: torch.Tensor,
-    candidate_objects: torch.Tensor,
-    target_indices: torch.Tensor,
-    gesture_tokens: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Compute supervised cross-entropy loss for the Listener.
-
-    This function computes the cross-entropy loss between the Listener's
-    predicted probabilities over candidates and the true target indices.
-
-    Args:
-        listener: The Listener agent.
-        message_tokens: Tensor of shape (batch_size, message_length) with message tokens.
-        candidate_objects: Tensor of shape (batch_size, num_candidates, object_dim) with candidates.
-        target_indices: Tensor of shape (batch_size,) with true target indices.
-
-    Returns:
-        Scalar tensor containing the cross-entropy loss.
-    """
-    # Get listener predictions
-    if gesture_tokens is not None:
-        probabilities = listener(message_tokens, candidate_objects, gesture_tokens)
-    else:
-        probabilities = listener(message_tokens, candidate_objects)
-
-    # Use standard cross-entropy loss since listener returns probabilities
-    # Convert probabilities to logits for cross-entropy
-    logits = torch.log(probabilities + 1e-8)  # Add small epsilon to avoid log(0)
-    loss = F.cross_entropy(logits, target_indices)
-
-    return loss
-
-
 def compute_speaker_loss(
-    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
-    speaker_logits: torch.Tensor,
+    logits: torch.Tensor,
     rewards: torch.Tensor,
     baseline: float,
     entropy_weight: float = 0.01,
-    length_weight: float = 0.0,
-    token_costs: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Compute REINFORCE loss for the Speaker with regularization.
+    """REINFORCE loss with entropy regularization."""
+    log_probs = F.log_softmax(logits, dim=-1)
+    sampled_tokens = torch.argmax(logits, dim=-1)
 
-    This function computes the policy gradient loss using REINFORCE with
-    a baseline to reduce variance in the gradient estimates, plus entropy
-    bonus and length cost regularizers.
+    # Gather log probs of sampled tokens
+    log_probs_sampled = log_probs.gather(2, sampled_tokens.unsqueeze(-1)).squeeze(-1)
+    total_log_probs = log_probs_sampled.sum(dim=1)
 
-    Args:
-        speaker: The Speaker agent.
-        speaker_logits: Tensor of shape (batch_size, message_length, vocab_size) with logits.
-        rewards: Tensor of shape (batch_size,) with rewards (1 if correct, 0 if incorrect).
-        baseline: Baseline value for variance reduction.
-        entropy_weight: Weight for entropy bonus regularization.
-        length_weight: Weight for length cost regularization.
-
-    Returns:
-        Scalar tensor containing the REINFORCE loss with regularization.
-    """
-    batch_size, message_length, vocab_size = speaker_logits.shape
-
-    # Compute log probabilities for each message position
-    log_probs = F.log_softmax(speaker_logits, dim=-1)
-
-    # For REINFORCE, we need the log probability of the sampled actions
-    # Since we used argmax during forward pass, we need to recompute with Gumbel-Softmax
-    # For simplicity, we'll use the log probabilities of the argmax actions
-    # This is an approximation but works for the basic implementation
-
-    # Get the most likely tokens (argmax)
-    sampled_tokens = torch.argmax(
-        speaker_logits, dim=-1
-    )  # (batch_size, message_length)
-
-    # Compute log probabilities of sampled actions
-    log_probs_sampled = []
-    for i in range(message_length):
-        pos_log_probs = log_probs[:, i, :]  # (batch_size, vocab_size)
-        pos_sampled = sampled_tokens[:, i]  # (batch_size,)
-        pos_log_probs_sampled = pos_log_probs.gather(
-            1, pos_sampled.unsqueeze(1)
-        ).squeeze(1)
-        log_probs_sampled.append(pos_log_probs_sampled)
-
-    # Sum log probabilities across message positions
-    total_log_probs = torch.stack(log_probs_sampled, dim=1).sum(dim=1)  # (batch_size,)
-
-    # Compute REINFORCE loss with baseline
     advantages = rewards - baseline
     reinforce_loss = -(total_log_probs * advantages).mean()
 
-    # Add regularization terms
-    entropy_bonus = compute_entropy_bonus(speaker_logits)
+    # Entropy bonus
+    probs = F.softmax(logits, dim=-1)
+    entropy = -(probs * log_probs).sum(dim=-1).mean()
 
-    # Get sampled tokens for cost calculation (approximate with argmax)
-    sampled_tokens = torch.argmax(speaker_logits, dim=-1)
-
-    # Standard length cost
-    length_cost = compute_length_cost(sampled_tokens, vocab_size)
-
-    # Token-specific costs if provided
-    token_specific_cost = torch.tensor(0.0, device=speaker_logits.device)
-    if token_costs is not None:
-        # Compute cost for each sequence and average
-        token_specific_cost = token_costs[sampled_tokens].sum(dim=1).mean()
-
-    # Combine losses
-    total_loss = (
-        reinforce_loss
-        - entropy_weight * entropy_bonus
-        + length_weight * length_cost
-        + token_specific_cost
-    )
-
-    return total_loss
-
-
-def evaluate_validation(
-    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
-    listener: Union[Listener, ListenerSeq, ContrastiveListener],
-    val_dataloader: DataLoader,
-    config: CommunicationConfig,
-    device: Optional[torch.device] = None,
-    temperature: float = 1.0,
-    use_sequence_models: bool = False,
-) -> float:
-    """Evaluate model on validation set.
-
-    This function evaluates the current model performance on the validation set,
-    returning the accuracy for early stopping and monitoring purposes.
-
-    Args:
-        speaker: The Speaker agent.
-        listener: The Listener agent.
-        val_dataloader: Validation data loader.
-        config: Communication configuration.
-        device: Device to run evaluation on.
-        temperature: Temperature for message generation.
-        use_sequence_models: Whether using sequence models.
-
-    Returns:
-        Validation accuracy as a float.
-    """
-    if device is None:
-        device = get_device()
-
-    speaker.eval()
-    listener.eval()
-
-    total_correct = 0
-    total_samples = 0
-
-    with torch.no_grad():
-        for batch in val_dataloader:
-            scene_tensor, target_indices, candidate_objects = batch
-
-            # Move to device
-            scene_tensor = scene_tensor.to(device)
-            target_indices = target_indices.to(device)
-            candidate_objects = candidate_objects.to(device)
-
-            # Extract target objects
-            batch_size = scene_tensor.size(0)
-            target_objects = scene_tensor[torch.arange(batch_size), target_indices]
-
-            # Speaker generates messages
-            if config.multimodal:
-                _, message_tokens, _, _ = speaker(
-                    target_objects, temperature=temperature
-                )
-            else:
-                # Handle different speaker types
-                speaker_output = speaker(target_objects, temperature=temperature)
-                if len(speaker_output) == 4:
-                    _, message_tokens, _, _ = speaker_output
-                else:
-                    _, message_tokens = speaker_output
-
-            # Listener makes predictions
-            listener_probs = listener(message_tokens, candidate_objects)
-            listener_predictions = torch.argmax(listener_probs, dim=1)
-
-            # Count correct predictions
-            correct = (listener_predictions == target_indices).sum().item()
-            total_correct += correct
-            total_samples += batch_size
-
-    accuracy = total_correct / total_samples if total_samples > 0 else 0.0
-
-    speaker.train()
-    listener.train()
-
-    return accuracy
-
-
-def train_step(
-    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker],
-    listener: Union[Listener, ListenerSeq, ContrastiveListener],
-    batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-    speaker_optimizer: torch.optim.Optimizer,
-    listener_optimizer: torch.optim.Optimizer,
-    speaker_baseline: MovingAverage,
-    config: CommunicationConfig,
-    lambda_speaker: float = 1.0,
-    entropy_weight: float = 0.01,
-    length_weight: float = 0.0,
-    device: Optional[torch.device] = None,
-    temperature: float = 1.0,
-    use_sequence_models: bool = False,
-    speaker_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
-    listener_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
-    step: int = 1,
-    token_costs: Optional[torch.Tensor] = None,
-    use_ema: bool = False,
-    speaker_ema: Optional[Union[Speaker, SpeakerSeq, ContrastiveSpeaker]] = None,
-    listener_ema: Optional[Union[Listener, ListenerSeq, ContrastiveListener]] = None,
-    ema_decay: float = 0.999,
-    use_warmup: bool = False,
-    has_warmup: bool = False,
-    warmup_steps: int = 0,
-) -> Dict[str, float]:
-    """Perform one training step for both Speaker and Listener.
-
-    This function executes a single training step, computing losses for both
-    agents and updating their parameters using the respective optimizers.
-    Supports both regular and sequence-aware models. Also handles learning
-    rate scheduler updates after the optimizer steps to maintain proper order.
-
-    Args:
-        speaker: The Speaker agent (Speaker or SpeakerSeq).
-        listener: The Listener agent (Listener or ListenerSeq).
-        batch: Tuple containing (scene_tensor, target_indices, candidate_objects).
-        speaker_optimizer: Optimizer for the Speaker.
-        listener_optimizer: Optimizer for the Listener.
-        speaker_baseline: Moving average baseline for Speaker rewards.
-        config: Communication configuration.
-        lambda_speaker: Weight for combining Speaker and Listener losses.
-        entropy_weight: Weight for entropy bonus regularization.
-        length_weight: Weight for length cost regularization.
-        device: Device to run computations on.
-        temperature: Temperature for Gumbel sampling.
-        use_sequence_models: Whether to use sequence models.
-        speaker_scheduler: Optional learning rate scheduler for speaker optimizer.
-        listener_scheduler: Optional learning rate scheduler for listener optimizer.
-        step: Current training step number for scheduler stepping.
-
-    Returns:
-        Dictionary containing loss values and accuracy metrics.
-    """
-    if device is None:
-        device = get_device()
-
-    scene_tensor, target_indices, candidate_objects = batch
-
-    # Move tensors to device
-    scene_tensor = scene_tensor.to(device)
-    target_indices = target_indices.to(device)
-    candidate_objects = candidate_objects.to(device)
-
-    # Apply data augmentation
-    if torch.rand(1).item() < 0.5:  # 50% chance of augmentation
-        # Random object permutation
-        scene_tensor, target_indices = random_object_permutation(
-            scene_tensor, target_indices
-        )
-        candidate_objects = scene_tensor  # Update candidate objects
-
-    if torch.rand(1).item() < 0.3:  # 30% chance of noise augmentation
-        # Add noise to object encodings
-        scene_tensor = add_noise_augmentation(scene_tensor, noise_std=0.05)
-        candidate_objects = scene_tensor  # Update candidate objects
-
-    # Extract target objects from scene tensor
-    batch_size = scene_tensor.size(0)
-    target_objects = scene_tensor[torch.arange(batch_size), target_indices]
-
-    # Speaker generates messages
-    if config.multimodal:
-        speaker_output = speaker(target_objects, temperature=temperature)
-        if len(speaker_output) == 4:
-            speaker_logits, message_tokens, gesture_logits, gesture_tokens = (
-                speaker_output
-            )
-        else:
-            speaker_logits, message_tokens = speaker_output
-            gesture_tokens = None
-    else:
-        if use_sequence_models:
-            speaker_output = speaker(target_objects, temperature=temperature)
-            if len(speaker_output) == 4:
-                speaker_logits, message_tokens, _, _ = speaker_output
-            else:
-                speaker_logits, message_tokens = speaker_output
-            gesture_tokens = None
-        else:
-            # Handle different speaker types that may return different numbers of values
-            speaker_output = speaker(target_objects, temperature=temperature)
-            if len(speaker_output) == 4:
-                speaker_logits, message_tokens, _, _ = speaker_output
-            else:
-                speaker_logits, message_tokens = speaker_output
-            gesture_tokens = None
-
-    # Listener makes predictions
-    if config.multimodal and gesture_tokens is not None:
-        listener_probs = listener(message_tokens, candidate_objects, gesture_tokens)
-    else:
-        listener_probs = listener(message_tokens, candidate_objects)
-    listener_predictions = torch.argmax(listener_probs, dim=1)
-
-    # Compute rewards (1 if correct, 0 if incorrect)
-    rewards = (listener_predictions == target_indices).float()
-
-    # Update speaker baseline
-    avg_reward = rewards.mean().item()
-    speaker_baseline.update(avg_reward)
-
-    # Compute losses
-    listener_loss = compute_listener_loss(
-        listener, message_tokens, candidate_objects, target_indices, gesture_tokens
-    )
-    speaker_loss = compute_speaker_loss(
-        speaker,
-        speaker_logits,
-        rewards,
-        speaker_baseline.average,
-        entropy_weight,
-        length_weight,
-        token_costs,
-    )
-
-    # Combined loss
-    total_loss = listener_loss + lambda_speaker * speaker_loss
-
-    # Add contrastive loss if using contrastive agents
-    if isinstance(speaker, ContrastiveSpeaker) and isinstance(
-        listener, ContrastiveListener
-    ):
-        contrastive_loss = compute_contrastive_loss(
-            speaker,
-            listener,
-            target_objects,
-            message_tokens,
-            candidate_objects,
-            temperature=config.contrastive_temperature,
-        )
-        total_loss = total_loss + config.contrastive_weight * contrastive_loss
-
-    # Backward pass
-    speaker_optimizer.zero_grad()
-    listener_optimizer.zero_grad()
-    total_loss.backward()
-
-    # Gradient clipping for stability
-    torch.nn.utils.clip_grad_norm_(
-        speaker.parameters(), max_norm=1.0
-    )  # Moderate clipping for better performance
-    torch.nn.utils.clip_grad_norm_(
-        listener.parameters(), max_norm=1.0
-    )  # Moderate clipping for better performance
-
-    speaker_optimizer.step()
-    listener_optimizer.step()
-
-    # Update EMA models
-    if use_ema and speaker_ema is not None and listener_ema is not None:
-        with torch.no_grad():
-            for ema_param, param in zip(speaker_ema.parameters(), speaker.parameters()):
-                ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
-            for ema_param, param in zip(
-                listener_ema.parameters(), listener.parameters()
-            ):
-                ema_param.data.mul_(ema_decay).add_(param.data, alpha=1 - ema_decay)
-
-    # Update learning rate schedulers after optimizer steps
-    # Suppress SequentialLR deprecation warning for epoch parameter
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=".*epoch parameter.*deprecated.*")
-        if speaker_scheduler is not None:
-            speaker_scheduler.step()
-        if listener_scheduler is not None:
-            listener_scheduler.step()
-
-    # Update warmup schedulers if enabled
-    if use_warmup and has_warmup and step <= warmup_steps:
-        # Note: Warmup schedulers are handled in the main training loop
-        pass
-
-    # Compute accuracy
-    accuracy = rewards.mean().item()
-
-    # Compute message length statistics
-    # For fixed-length messages, the length is constant, but we can still track it
-    avg_message_length = float(message_tokens.shape[1])  # message_length dimension
-    message_length_std = 0.0  # For fixed-length messages, std is 0
-
-    return {
-        "total_loss": total_loss.item(),
-        "listener_loss": listener_loss.item(),
-        "speaker_loss": speaker_loss.item(),
-        "accuracy": accuracy,
-        "baseline": speaker_baseline.average,
-        "avg_message_length": avg_message_length,
-        "message_length_std": message_length_std,
-    }
+    return reinforce_loss - entropy_weight * entropy
 
 
 def train(
@@ -800,524 +68,93 @@ def train(
     k: int,
     v: int,
     message_length: int,
-    seed: int,
-    log_every: int = 100,
-    eval_every: int = 500,
-    lambda_speaker: float = 1.0,
+    seed: int = 7,
     batch_size: int = 32,
-    learning_rate: float = 1e-3,
-    hidden_size: int = 64,
+    learning_rate: float = 2e-4,
+    hidden_size: int = 128,
     use_sequence_models: bool = False,
     entropy_weight: float = 0.01,
-    length_weight: float = 0.0,
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
-    multimodal: bool = False,
-    distractors: int = 0,
-    temperature_start: float = 2.0,
-    temperature_end: float = 0.5,
-    use_curriculum: bool = True,
-    use_warmup: bool = True,
-    use_ema: bool = True,
-    use_early_stopping: bool = True,
-    early_stopping_patience: int = 50,
-    early_stopping_min_delta: float = 0.001,
-    use_contrastive: bool = True,
-    contrastive_temperature: float = 0.07,
-    contrastive_weight: float = 0.1,
-    # Experiment tracking parameters
-    tracking_project: str = "langlab-emergent",
-    tracking_experiment_name: Optional[str] = None,
-    tracking_tags: Optional[List[str]] = None,
-    tracking_notes: Optional[str] = None,
 ) -> None:
-    """Train Speaker and Listener agents for emergent language.
-
-    This function runs the main training loop for emergent language experiments,
-    training both agents through interaction in referential games. Supports both
-    regular and sequence-aware models, contrastive learning, and compositional splits for generalization testing.
-
-    Args:
-        n_steps: Number of training steps to perform.
-        k: Number of objects per scene.
-        v: Vocabulary size.
-        message_length: Message length.
-        seed: Random seed for reproducibility.
-        log_every: Frequency of logging training metrics.
-        eval_every: Frequency of saving checkpoints.
-        lambda_speaker: Weight for Speaker loss in combined objective.
-        batch_size: Batch size for training.
-        learning_rate: Learning rate for optimizers.
-        hidden_size: Hidden dimension for neural networks.
-        use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq).
-        entropy_weight: Weight for entropy bonus regularization.
-        length_weight: Weight for length cost regularization.
-        heldout_pairs: List of held-out attribute pairs for compositional splits.
-        multimodal: Whether to enable multimodal communication with gestures.
-        distractors: Number of distractor objects for pragmatic inference.
-    """
-    # Set seed for reproducibility
+    """Core training loop for emergent language."""
     set_seed(seed)
-
-    # Create output directories
-    os.makedirs("outputs/logs", exist_ok=True)
-    os.makedirs("outputs/checkpoints", exist_ok=True)
-
-    # Initialize experiment tracking
-    tracker = None
-    try:
-        experiment_name = (
-            tracking_experiment_name or f"train_k{k}_v{v}_l{message_length}_seed{seed}"
-        )
-        tracker = get_tracker(
-            project_name=tracking_project,
-            experiment_name=experiment_name,
-            tags=tracking_tags or ["training", "emergent-language"],
-            notes=tracking_notes
-            or f"Training with k={k}, v={v}, message_length={message_length}",
-        )
-
-        # Log hyperparameters
-        hyperparams = {
-            "n_steps": n_steps,
-            "k": k,
-            "v": v,
-            "message_length": message_length,
-            "seed": seed,
-            "batch_size": batch_size,
-            "learning_rate": learning_rate,
-            "hidden_size": hidden_size,
-            "use_sequence_models": use_sequence_models,
-            "entropy_weight": entropy_weight,
-            "length_weight": length_weight,
-            "multimodal": multimodal,
-            "distractors": distractors,
-            "temperature_start": temperature_start,
-            "temperature_end": temperature_end,
-            "use_curriculum": use_curriculum,
-            "use_warmup": use_warmup,
-            "use_ema": use_ema,
-            "use_early_stopping": use_early_stopping,
-            "early_stopping_patience": early_stopping_patience,
-            "early_stopping_min_delta": early_stopping_min_delta,
-            "use_contrastive": use_contrastive,
-            "contrastive_temperature": contrastive_temperature,
-            "contrastive_weight": contrastive_weight,
-            "lambda_speaker": lambda_speaker,
-        }
-        tracker.log_params(hyperparams)
-        logger.info(f"Experiment tracking initialized: {experiment_name}")
-
-    except Exception as e:
-        logger.warning(f"Failed to initialize experiment tracking: {e}")
-        tracker = None
-
-    # Get device
     device = get_device()
-    logger.info(f"Training on device: {device}")
 
-    # Create configuration
     config = CommunicationConfig(
         vocabulary_size=v,
         message_length=message_length,
         hidden_size=hidden_size,
-        multimodal=multimodal,
-        distractors=distractors,
         use_sequence_models=use_sequence_models,
-        use_contrastive=use_contrastive,
-        contrastive_temperature=contrastive_temperature,
-        contrastive_weight=contrastive_weight,
         seed=seed,
     )
 
-    # Create agents
-    speaker: Union[Speaker, SpeakerSeq, ContrastiveSpeaker]
-    listener: Union[Listener, ListenerSeq, ContrastiveListener]
+    speaker: Any
+    listener: Any
 
-    if use_contrastive:
-        speaker = ContrastiveSpeaker(config).to(device)
-        listener = ContrastiveListener(config).to(device)
-        logger.info("Using contrastive learning agents")
-    elif use_sequence_models:
+    if use_sequence_models:
         speaker = SpeakerSeq(config).to(device)
         listener = ListenerSeq(config).to(device)
-        logger.info("Using sequence-aware models (SpeakerSeq/ListenerSeq)")
     else:
         speaker = Speaker(config).to(device)
         listener = Listener(config).to(device)
-        logger.info("Using regular models (Speaker/Listener)")
 
-    # Create optimizers with very strong regularization
-    speaker_optimizer = torch.optim.AdamW(
-        speaker.parameters(),
-        lr=learning_rate,
-        weight_decay=1e-4,  # Moderate weight decay for better performance
-        betas=(0.9, 0.999),
-        eps=1e-8,
-    )
-    listener_optimizer = torch.optim.AdamW(
-        listener.parameters(),
-        lr=learning_rate,
-        weight_decay=1e-4,  # Moderate weight decay for better performance
-        betas=(0.9, 0.999),
-        eps=1e-8,
-    )
+    speaker_opt = torch.optim.Adam(speaker.parameters(), lr=learning_rate)
+    listener_opt = torch.optim.Adam(listener.parameters(), lr=learning_rate)
 
-    # Enhanced learning rate schedulers with cosine annealing and warmup
-    if use_warmup:
-        warmup_steps = min(500, n_steps // 10)
-        # Create combined scheduler with warmup + cosine annealing
-        # Suppress SequentialLR deprecation warning for epoch parameter
-        import warnings
+    baseline = MovingAverage()
+    dataset = ReferentialGameDataset(n_steps * batch_size, k, seed=seed)
+    dataloader = DataLoader(dataset, batch_size=batch_size)
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message=".*epoch parameter.*deprecated.*")
-            speaker_scheduler = torch.optim.lr_scheduler.SequentialLR(
-                speaker_optimizer,
-                schedulers=[
-                    torch.optim.lr_scheduler.LinearLR(
-                        speaker_optimizer, start_factor=0.1, total_iters=warmup_steps
-                    ),
-                    torch.optim.lr_scheduler.CosineAnnealingLR(
-                        speaker_optimizer,
-                        T_max=n_steps - warmup_steps,
-                        eta_min=learning_rate * 0.01,
-                    ),
-                ],
-                milestones=[warmup_steps],
-            )
-            listener_scheduler = torch.optim.lr_scheduler.SequentialLR(
-                listener_optimizer,
-                schedulers=[
-                    torch.optim.lr_scheduler.LinearLR(
-                        listener_optimizer, start_factor=0.1, total_iters=warmup_steps
-                    ),
-                    torch.optim.lr_scheduler.CosineAnnealingLR(
-                        listener_optimizer,
-                        T_max=n_steps - warmup_steps,
-                        eta_min=learning_rate * 0.01,
-                    ),
-                ],
-                milestones=[warmup_steps],
-            )
-    else:
-        speaker_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            speaker_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )  # type: ignore
-        listener_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            listener_optimizer, T_max=n_steps, eta_min=learning_rate * 0.01
-        )  # type: ignore
+    speaker.train()
+    listener.train()
 
-    # Log warmup information
-    if use_warmup:
-        warmup_steps = min(500, n_steps // 10)
-        logger.info(f"Using learning rate warmup for {warmup_steps} steps")
+    for step, batch in enumerate(dataloader):
+        if step >= n_steps:
+            break
 
-    # Create baseline and EMA for better training stability
-    speaker_baseline = MovingAverage(window_size=100)
+        scene, targets, _ = batch
+        scene, targets = scene.to(device), targets.to(device)
 
-    # Exponential Moving Average for model parameters
-    if use_ema:
-        from copy import deepcopy
+        # Speaker
+        target_objs = scene[torch.arange(batch_size), targets]
+        speaker_output = speaker(target_objs)
+        speaker_logits, message_tokens = speaker_output[0], speaker_output[1]
 
-        speaker_ema = deepcopy(speaker)
-        listener_ema = deepcopy(listener)
-        ema_decay = 0.999
-        logger.info("Using Exponential Moving Average for model parameters")
-    else:
-        speaker_ema = None
-        listener_ema = None
-        ema_decay = 0.999  # Default value, not used when use_ema=False
+        # Listener
+        listener_probs = listener(message_tokens, scene)
+        preds = torch.argmax(listener_probs, dim=1)
 
-    # Early stopping for preventing overfitting
-    if use_early_stopping:
-        early_stopping = EarlyStopping(
-            patience=early_stopping_patience,
-            min_delta=early_stopping_min_delta,
-            mode="max",
-            restore_best_weights=True,
+        # Rewards and Loss
+        rewards = (preds == targets).float()
+        baseline.update(rewards.mean().item())
+
+        l_loss = F.cross_entropy(torch.log(listener_probs + 1e-8), targets)
+        s_loss = compute_speaker_loss(
+            speaker_logits, rewards, baseline.average, entropy_weight
         )
-        logger.info(f"Using early stopping with patience={early_stopping_patience}")
-        logger.info("Early stopping checks every step for optimal peak detection")
-    else:
-        early_stopping = None
 
-    # Create dataset with proper train/validation split
-    if heldout_pairs is not None:
-        from ..data.data import make_compositional_splits
+        total_loss = l_loss + s_loss
 
-        splits = make_compositional_splits(n_steps * batch_size, k, heldout_pairs, seed)
-        train_dataset: Union[
-            ReferentialGameDataset, CompositionalDataset, DistractorDataset
-        ] = splits["train"]
-        val_dataset = splits.get("val", splits["train"])  # Use train as fallback
-        logger.info(f"Using compositional splits with heldout pairs: {heldout_pairs}")
-        logger.info(f"Training set size: {len(train_dataset)}")
-        logger.info(f"Validation set size: {len(val_dataset)}")
-    else:
-        if distractors > 0:
-            # Create train/val split for distractor dataset
-            total_scenes = n_steps * batch_size
-            train_size = int(0.8 * total_scenes)
-            val_size = total_scenes - train_size
+        # Update
+        speaker_opt.zero_grad()
+        listener_opt.zero_grad()
+        total_loss.backward()
+        speaker_opt.step()
+        listener_opt.step()
 
-            train_dataset = DistractorDataset(
-                n_scenes=train_size,
-                k=k,
-                num_distractors=distractors,
-                seed=seed,
-            )
-            val_dataset = DistractorDataset(
-                n_scenes=val_size,
-                k=k,
-                num_distractors=distractors,
-                seed=seed + 1,  # Different seed for validation
-            )  # type: ignore
+        if step % 100 == 0:
             logger.info(
-                f"Using distractor dataset with {distractors} distractors per scene"
-            )
-            logger.info(f"Training set size: {len(train_dataset)}")
-            logger.info(f"Validation set size: {len(val_dataset)}")
-        else:
-            # Create train/val split for regular dataset
-            total_scenes = n_steps * batch_size
-            train_size = int(0.8 * total_scenes)
-            val_size = total_scenes - train_size
-
-            if use_curriculum:
-                curriculum_k = get_curriculum_k(0, n_steps, min_k=2, max_k=k)
-                train_dataset = ReferentialGameDataset(
-                    n_scenes=train_size, k=curriculum_k, seed=seed
-                )  # type: ignore
-                val_dataset = ReferentialGameDataset(
-                    n_scenes=val_size, k=curriculum_k, seed=seed + 1
-                )  # type: ignore
-                logger.info(
-                    f"Using curriculum learning: starting with k={curriculum_k}"
-                )
-            else:
-                train_dataset = ReferentialGameDataset(
-                    n_scenes=train_size, k=k, seed=seed
-                )  # type: ignore
-                val_dataset = ReferentialGameDataset(
-                    n_scenes=val_size, k=k, seed=seed + 1
-                )  # type: ignore
-                logger.info(f"Using fixed difficulty: k={k}")
-
-            logger.info(f"Training set size: {len(train_dataset)}")
-            logger.info(f"Validation set size: {len(val_dataset)}")
-
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-    # Training loop
-    logger.info(f"Starting training for {n_steps} steps")
-    logger.info(f"Configuration: K={k}, V={v}, L={message_length}, seed={seed}")
-
-    # Initialize metrics logging
-    metrics_file = "outputs/logs/metrics.csv"
-    with open(metrics_file, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(
-            [
-                "step",
-                "total_loss",
-                "listener_loss",
-                "speaker_loss",
-                "accuracy",
-                "baseline",
-                "avg_message_length",
-                "message_length_std",
-            ]
-        )
-
-    # Initialize message logging for language analysis
-    message_logs_file = "outputs/logs/message_logs.csv"
-    with open(message_logs_file, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["step", "message_tokens"])
-
-    step = 0
-    dataloader_iter = iter(train_dataloader)
-
-    while step < n_steps:
-        try:
-            batch = next(dataloader_iter)
-        except StopIteration:
-            # Restart dataloader if we run out of data
-            dataloader_iter = iter(train_dataloader)
-            batch = next(dataloader_iter)
-
-        # Compute advanced temperature annealing with cosine schedule
-        progress = step / n_steps
-        # Cosine annealing for smoother temperature decay
-        temperature = (
-            temperature_end
-            + (temperature_start - temperature_end)
-            * 0.5
-            * (1 + torch.cos(torch.tensor(progress * 3.14159))).item()
-        )
-
-        # Training step
-        metrics = train_step(
-            speaker,
-            listener,
-            batch,
-            speaker_optimizer,
-            listener_optimizer,
-            speaker_baseline,
-            config,
-            lambda_speaker,
-            entropy_weight,
-            length_weight,
-            device,
-            temperature,
-            use_sequence_models,
-            speaker_scheduler,
-            listener_scheduler,
-            step + 1,  # Pass the step number for scheduler stepping
-            None,  # token_costs (not supported in this path yet)
-            use_ema,
-            speaker_ema,
-            listener_ema,
-            ema_decay,
-            use_warmup,
-            "speaker_warmup" in locals() if use_warmup else False,
-            warmup_steps if use_warmup else 0,
-        )
-
-        # Schedulers are updated inside train_step function
-
-        step += 1
-
-        # Early stopping check - use validation accuracy for proper generalization
-        if (
-            early_stopping is not None and step % 10 == 0
-        ):  # Check every 10 steps to reduce overhead
-            val_accuracy = evaluate_validation(
-                speaker,
-                listener,
-                val_dataloader,
-                config,
-                device,
-                temperature,
-                use_sequence_models,
-            )
-            should_stop = early_stopping(val_accuracy, listener)
-            if should_stop:
-                logger.info(
-                    f"Early stopping triggered at step {step}. "
-                    f"Best validation accuracy: {early_stopping.best_score:.4f}"
-                )
-                break
-
-        # Logging
-        if step % log_every == 0:
-            logger.info(
-                f"Step {step}: Loss={metrics['total_loss']:.4f}, "
-                f"Acc={metrics['accuracy']:.4f}, Baseline={metrics['baseline']:.4f}"
+                f"Step {step}/{n_steps} | Loss: {total_loss.item():.4f} | Acc: {rewards.mean().item():.4f}"
             )
 
-            # Log metrics to experiment tracking
-            if tracker:
-                tracker.log_metrics(metrics, step=step)
-
-        # Save metrics
-        with open(metrics_file, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                [
-                    step,
-                    metrics["total_loss"],
-                    metrics["listener_loss"],
-                    metrics["speaker_loss"],
-                    metrics["accuracy"],
-                    metrics["baseline"],
-                    metrics["avg_message_length"],
-                    metrics["message_length_std"],
-                ]
-            )
-
-        # Save message tokens for language analysis (every 10 steps to avoid too much data)
-        if step % 10 == 0:
-            # Get message tokens from the last batch
-            with torch.no_grad():
-                # Generate a sample message to log
-                sample_batch = next(iter(train_dataloader))
-                scene_tensor, target_indices, _ = sample_batch
-                scene_tensor = scene_tensor.to(device)
-                target_indices = target_indices.to(device)
-
-                # Extract target objects
-                batch_size = scene_tensor.size(0)
-                target_objects = scene_tensor[torch.arange(batch_size), target_indices]
-
-                # Generate message
-                speaker_output = speaker(target_objects, temperature=temperature)
-                if len(speaker_output) == 4:
-                    _, message_tokens, _, _ = speaker_output
-                else:
-                    _, message_tokens = speaker_output
-
-                # Convert message tokens to string format
-                # Handle both scalar tokens and one-hot encoded tokens
-                token_strings = []
-                for token in message_tokens[0]:
-                    if token.numel() == 1:
-                        # Scalar token
-                        token_strings.append(str(token.item()))
-                    else:
-                        # One-hot encoded token - find the index of the 1
-                        token_idx = torch.argmax(token).item()
-                        token_strings.append(str(token_idx))
-                message_str = " ".join(token_strings)
-
-                # Save to message logs
-                with open(message_logs_file, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([step, message_str])
-
-        # Save checkpoint
-        if step % eval_every == 0:
-            checkpoint_path = f"outputs/checkpoints/checkpoint_step_{step}.pt"
-            torch.save(
-                {
-                    "step": step,
-                    "speaker_state_dict": speaker.state_dict(),
-                    "listener_state_dict": listener.state_dict(),
-                    "speaker_optimizer_state_dict": speaker_optimizer.state_dict(),
-                    "listener_optimizer_state_dict": listener_optimizer.state_dict(),
-                    "config": config,
-                    "metrics": metrics,
-                },
-                checkpoint_path,
-            )
-            logger.info(f"Saved checkpoint at step {step}")
-
-    # Save final checkpoint
-    final_checkpoint_path = "outputs/checkpoints/checkpoint.pt"
+    # Save final model
+    os.makedirs("outputs/checkpoints", exist_ok=True)
     torch.save(
         {
-            "step": step,
             "speaker_state_dict": speaker.state_dict(),
             "listener_state_dict": listener.state_dict(),
-            "speaker_optimizer_state_dict": speaker_optimizer.state_dict(),
-            "listener_optimizer_state_dict": listener_optimizer.state_dict(),
             "config": config,
-            "metrics": metrics,
         },
-        final_checkpoint_path,
+        "outputs/checkpoints/final_model.pt",
     )
-
-    logger.info(f"Training completed. Final accuracy: {metrics['accuracy']:.4f}")
-    logger.info(f"Metrics saved to: {metrics_file}")
-    logger.info(f"Final checkpoint saved to: {final_checkpoint_path}")
-
-    # Log final model and finish tracking
-    if tracker:
-        try:
-            tracker.log_model(final_checkpoint_path, "final_model")
-            tracker.log_artifact(metrics_file, "training_logs")
-            tracker.log_artifact(message_logs_file, "message_logs")
-            tracker.finish()
-        except Exception as e:
-            logger.warning(f"Failed to log final artifacts: {e}")
+    logger.info("Training complete. Model saved to outputs/checkpoints/final_model.pt")
