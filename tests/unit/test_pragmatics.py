@@ -53,7 +53,8 @@ class TestPragmaticListener:
         )
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
-        pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
+        listener_out = pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_probs = listener_out.probs
 
         # Check output shape
         assert pragmatic_probs.shape == (batch_size, num_candidates)
@@ -85,9 +86,10 @@ class TestPragmaticListener:
         )
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
-        pragmatic_probs = pragmatic_listener(
+        listener_out = pragmatic_listener(
             message_tokens, candidate_objects, gesture_tokens
         )
+        pragmatic_probs = listener_out.probs
 
         # Check output shape
         assert pragmatic_probs.shape == (batch_size, num_candidates)
@@ -116,7 +118,8 @@ class TestPragmaticListener:
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Test literal listener probabilities
-        literal_probs = literal_listener(message_tokens, candidate_objects)
+        literal_out = literal_listener(message_tokens, candidate_objects)
+        literal_probs = literal_out.probs
         assert literal_probs.shape == (batch_size, num_candidates)
         assert torch.allclose(
             literal_probs.sum(dim=-1), torch.ones(batch_size), atol=1e-6
@@ -126,7 +129,8 @@ class TestPragmaticListener:
         speaker_probs = []
         for i in range(num_candidates):
             candidate_obj = candidate_objects[:, i, :]
-            logits, _, _, _ = speaker(candidate_obj)
+            speaker_out = speaker(candidate_obj)
+            logits = speaker_out.logits
 
             # Compute probability of observed message
             message_probs = F.softmax(logits, dim=-1)
@@ -247,13 +251,16 @@ class TestPragmaticPerformance:
 
         # Generate message for target object
         target_encoding = target_obj.unsqueeze(0).repeat(batch_size, 1)
-        logits, message_tokens, _, _ = speaker(target_encoding)
+        speaker_out = speaker(target_encoding)
+        _, message_tokens = speaker_out.logits, speaker_out.tokens
 
         # Test literal listener
-        literal_probs = literal_listener(message_tokens, candidate_objects)
+        literal_out = literal_listener(message_tokens, candidate_objects)
+        literal_probs = literal_out.probs
 
         # Test pragmatic listener
-        pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_out = pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_probs = pragmatic_out.probs
 
         # Both should produce valid probabilities
         assert torch.allclose(
@@ -292,8 +299,10 @@ class TestPragmaticPerformance:
         pragmatic_listener.eval()
 
         # Run multiple times
-        probs1 = pragmatic_listener(message_tokens, candidate_objects)
-        probs2 = pragmatic_listener(message_tokens, candidate_objects)
+        probs_out1 = pragmatic_listener(message_tokens, candidate_objects)
+        probs1 = probs_out1.probs
+        probs_out2 = pragmatic_listener(message_tokens, candidate_objects)
+        probs2 = probs_out2.probs
 
         # Should be identical in eval mode
         assert torch.allclose(probs1, probs2, atol=1e-6)
@@ -320,7 +329,8 @@ class TestPragmaticPerformance:
         )
 
         # Compute pragmatic probabilities
-        pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
+        listener_out = pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_probs = listener_out.probs
 
         # Compute loss
         target_indices = torch.randint(0, num_candidates, (batch_size,))
@@ -357,9 +367,10 @@ class TestPragmaticPerformance:
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Test multimodal pragmatic processing
-        pragmatic_probs = pragmatic_listener(
+        listener_out = pragmatic_listener(
             message_tokens, candidate_objects, gesture_tokens
         )
+        pragmatic_probs = listener_out.probs
 
         # Check output shape and validity
         assert pragmatic_probs.shape == (batch_size, num_candidates)
@@ -378,9 +389,8 @@ class TestPragmaticPerformance:
         unimodal_pragmatic_listener = PragmaticListener(
             unimodal_config, unimodal_literal_listener, unimodal_speaker
         )
-        pragmatic_probs_unimodal = unimodal_pragmatic_listener(
-            message_tokens, candidate_objects
-        )
+        unimodal_out = unimodal_pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_probs_unimodal = unimodal_out.probs
 
         # Should be different due to different input modalities
         assert not torch.allclose(pragmatic_probs, pragmatic_probs_unimodal, atol=1e-3)
@@ -408,16 +418,19 @@ class TestPragmaticIntegration:
         object_encoding = torch.randn(batch_size, 8)
 
         # Speaker generates message
-        logits, token_ids, _, _ = speaker(object_encoding)
+        speaker_out = speaker(object_encoding)
+        _logits, token_ids = speaker_out.logits, speaker_out.tokens
 
         # Create candidate objects
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Literal listener processes message
-        literal_probs = literal_listener(token_ids, candidate_objects)
+        literal_out = literal_listener(token_ids, candidate_objects)
+        literal_probs = literal_out.probs
 
         # Pragmatic listener processes message
-        pragmatic_probs = pragmatic_listener(token_ids, candidate_objects)
+        pragmatic_out = pragmatic_listener(token_ids, candidate_objects)
+        pragmatic_probs = pragmatic_out.probs
 
         # Both should produce valid probabilities
         assert torch.allclose(
@@ -453,11 +466,14 @@ class TestPragmaticIntegration:
 
         # Generate message for target
         target_encoding = encoded_objects[target_idx].unsqueeze(0)
-        logits, message_tokens, _, _ = speaker(target_encoding)
+        speaker_out = speaker(target_encoding)
+        _logits, message_tokens = speaker_out.logits, speaker_out.tokens
 
         # Test both listeners
-        literal_probs = literal_listener(message_tokens, candidate_objects)
-        pragmatic_probs = pragmatic_listener(message_tokens, candidate_objects)
+        literal_out = literal_listener(message_tokens, candidate_objects)
+        literal_probs = literal_out.probs
+        pragmatic_out = pragmatic_listener(message_tokens, candidate_objects)
+        pragmatic_probs = pragmatic_out.probs
 
         # Both should produce valid probabilities
         assert torch.allclose(literal_probs.sum(dim=-1), torch.ones(1), atol=1e-6)
