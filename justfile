@@ -37,12 +37,6 @@ test:
 all: fmt lint type test
     echo "All checks completed!"
 
-# start Flask dashboard
-dashboard:
-    echo "Starting dashboard..."
-    echo "Dashboard will be available at http://localhost:5000"
-    {{PYTHON}} dashboard/main.py
-
 # clean up generated files
 clean:
     rm -rf htmlcov/

@@ -4,55 +4,25 @@ This document provides a comprehensive guide to the testing infrastructure and o
 
 ## 📁 Test Organization
 
-The test suite is organized into three main categories:
+The test suite is organized as follows:
 
 ```
 tests/
 ├── conftest.py              # Shared fixtures and configuration
-├── pytest.ini              # Pytest configuration
 ├── unit/                    # Unit tests for individual components
 │   ├── test_agents.py       # Agent architecture tests
 │   ├── test_world.py        # World generation tests
 │   ├── test_data.py         # Dataset tests
-│   ├── test_config.py       # Configuration tests
-│   ├── test_channel.py      # Communication channel tests
-│   ├── test_utils.py        # Utility function tests
-│   ├── test_grid.py         # Grid world tests
-│   ├── test_grounding.py    # Grounded learning tests
 │   ├── test_analysis.py     # Analysis function tests
 │   ├── test_pragmatics.py   # Pragmatic inference tests
 │   ├── test_multimodal.py   # Multimodal communication tests
 │   ├── test_sequences.py    # Sequence model tests
 │   ├── test_splits.py       # Data splitting tests
-│   ├── test_entropy_bonus.py # Entropy bonus tests
-│   ├── test_loss_shapes.py  # Loss function tests
-│   ├── test_heatmap_io.py   # Heatmap I/O tests
-│   └── test_vocab_stats.py  # Vocabulary statistics tests
-├── integration/             # Integration tests for workflows
-│   ├── test_cli.py          # CLI integration tests
-│   ├── test_training.py     # Training workflow tests
-│   ├── test_e2e.py          # End-to-end workflow tests
-│   ├── test_app_smoke.py    # Dashboard smoke tests
-│   ├── test_train_smoke.py  # Training smoke tests
-│   ├── test_population.py   # Population dynamics tests
-│   ├── test_contact.py      # Contact experiment tests
-│   ├── test_eval.py         # Evaluation workflow tests
-│   ├── test_ablate.py       # Ablation study tests
-│   ├── test_report.py       # Report generation tests
-│   └── test_reproducibility.py # Reproducibility tests
-└── fixtures/                # Test fixtures and utilities
-    └── (future test data files)
+│   └── test_basic.py        # Generic smoke tests
+└── integration/             # Integration tests for workflows
+    ├── test_train_smoke.py  # Training smoke tests
+    └── test_reproducibility.py # Reproducibility tests
 ```
-
-## 🏷️ Test Markers
-
-Tests are organized using pytest markers:
-
-- **`@pytest.mark.unit`**: Unit tests for individual components
-- **`@pytest.mark.integration`**: Integration tests for workflows
-- **`@pytest.mark.slow`**: Slow-running tests (training, large experiments)
-- **`@pytest.mark.gpu`**: Tests requiring GPU (future)
-- **`@pytest.mark.smoke`**: Smoke tests for basic functionality
 
 ## 🚀 Running Tests
 
@@ -60,22 +30,16 @@ Tests are organized using pytest markers:
 
 ```bash
 # Run all tests
-make test
+just test
 
 # Run only unit tests
-make test-unit
+python -m pytest tests/unit
 
 # Run only integration tests
-make test-integration
-
-# Run slow tests
-make test-slow
-
-# Run tests with coverage
-make test-coverage
+python -m pytest tests/integration
 
 # Run all checks (format, lint, type, test)
-make test-all
+just all
 ```
 
 ### Advanced Commands
