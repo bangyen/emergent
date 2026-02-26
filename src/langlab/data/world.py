@@ -5,7 +5,12 @@ the foundation for studying proto-language emergence in multi-agent systems.
 """
 
 import random
-from typing import Dict, List, Tuple, Optional
+from typing import (
+    Dict,
+    List,
+    Tuple,
+    Optional,
+)
 
 import torch
 
@@ -209,10 +214,10 @@ def encode_object(obj: Dict[str, str]) -> torch.Tensor:
 
     # Encode shape
     shape_idx = SHAPES.index(obj["shape"])
-    encoding[N_COLORS + shape_idx] = 1.0
+    encoding[N_COLORS + shape_idx,] = 1.0
 
     # Encode size
     size_idx = SIZES.index(obj["size"])
-    encoding[N_COLORS + N_SHAPES + size_idx] = 1.0
+    encoding[N_COLORS + N_SHAPES + size_idx,] = 1.0
 
     return encoding
