@@ -78,7 +78,13 @@ class TestMultimodalAgents:
         batch_size = 3
         object_encoding = torch.randn(batch_size, 8)  # TOTAL_ATTRIBUTES
 
-        logits, token_ids, gesture_logits, gesture_ids = speaker(object_encoding)
+        speaker_out = speaker(object_encoding)
+        logits, token_ids, gesture_logits, gesture_ids = (
+            speaker_out.logits,
+            speaker_out.tokens,
+            speaker_out.gesture_logits,
+            speaker_out.gestures,
+        )
 
         # Check shapes
         assert logits.shape == (
@@ -110,7 +116,13 @@ class TestMultimodalAgents:
         batch_size = 3
         object_encoding = torch.randn(batch_size, 8)
 
-        logits, token_ids, gesture_logits, gesture_ids = speaker(object_encoding)
+        speaker_out = speaker(object_encoding)
+        logits, token_ids, gesture_logits, gesture_ids = (
+            speaker_out.logits,
+            speaker_out.tokens,
+            speaker_out.gesture_logits,
+            speaker_out.gestures,
+        )
 
         # Check shapes
         assert logits.shape == (
@@ -142,7 +154,8 @@ class TestMultimodalAgents:
         )
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
-        probabilities = listener(message_tokens, candidate_objects, gesture_tokens)
+        listener_out = listener(message_tokens, candidate_objects, gesture_tokens)
+        probabilities = listener_out.probs
 
         # Check output shape
         assert probabilities.shape == (batch_size, num_candidates)
@@ -167,7 +180,8 @@ class TestMultimodalAgents:
         )
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
-        probabilities = listener(message_tokens, candidate_objects)
+        listener_out = listener(message_tokens, candidate_objects)
+        probabilities = listener_out.probs
 
         # Check output shape
         assert probabilities.shape == (batch_size, num_candidates)
@@ -197,7 +211,8 @@ class TestMultimodalAgents:
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Test multimodal processing
-        multimodal_probs = listener(message_tokens, candidate_objects, gesture_tokens)
+        multimodal_out = listener(message_tokens, candidate_objects, gesture_tokens)
+        multimodal_probs = multimodal_out.probs
         assert multimodal_probs.shape == (batch_size, num_candidates)
 
         # Test unimodal processing (create unimodal listener)
@@ -207,7 +222,8 @@ class TestMultimodalAgents:
             multimodal=False,
         )
         unimodal_listener = Listener(unimodal_config)
-        unimodal_probs = unimodal_listener(message_tokens, candidate_objects)
+        unimodal_out = unimodal_listener(message_tokens, candidate_objects)
+        unimodal_probs = unimodal_out.probs
         assert unimodal_probs.shape == (batch_size, num_candidates)
 
     def test_multimodal_consistency(self) -> None:
@@ -229,7 +245,8 @@ class TestMultimodalAgents:
 
         # Process with zero gestures (should be similar to unimodal)
         zero_gestures = torch.zeros(batch_size, config.message_length, dtype=torch.long)
-        multimodal_probs = listener(message_tokens, candidate_objects, zero_gestures)
+        multimodal_out = listener(message_tokens, candidate_objects, zero_gestures)
+        multimodal_probs = multimodal_out.probs
 
         # Process unimodally (create unimodal listener)
         unimodal_config = CommunicationConfig(
@@ -238,7 +255,8 @@ class TestMultimodalAgents:
             multimodal=False,
         )
         unimodal_listener = Listener(unimodal_config)
-        unimodal_probs = unimodal_listener(message_tokens, candidate_objects)
+        unimodal_out = unimodal_listener(message_tokens, candidate_objects)
+        unimodal_probs = unimodal_out.probs
 
         # Results should be different due to different input dimensions
         # but both should be valid probability distributions
@@ -274,7 +292,13 @@ class TestMultimodalIntegration:
         object_encoding = torch.randn(batch_size, 8)
 
         # Speaker generates multimodal message
-        logits, token_ids, gesture_logits, gesture_ids = speaker(object_encoding)
+        speaker_out = speaker(object_encoding)
+        logits, _, gesture_logits, _ = (
+            speaker_out.logits,
+            speaker_out.tokens,
+            speaker_out.gesture_logits,
+            speaker_out.gestures,
+        )
 
         # Channel transmits multimodal message
         transmitted_tokens, transmitted_gestures = channel.send_multimodal(
@@ -285,9 +309,10 @@ class TestMultimodalIntegration:
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Listener processes multimodal message
-        probabilities = listener(
+        listener_out = listener(
             transmitted_tokens, candidate_objects, transmitted_gestures
         )
+        probabilities = listener_out.probs
 
         # Check all shapes are consistent
         assert transmitted_tokens.shape == (batch_size, config.message_length)
@@ -321,13 +346,20 @@ class TestMultimodalIntegration:
         listener.train()
 
         # Speaker generates multimodal message
-        logits, token_ids, gesture_logits, gesture_ids = speaker(object_encoding)
+        speaker_out = speaker(object_encoding)
+        logits, token_ids, _, gesture_ids = (
+            speaker_out.logits,
+            speaker_out.tokens,
+            speaker_out.gesture_logits,
+            speaker_out.gestures,
+        )
 
         # Create candidate objects
         candidate_objects = torch.randn(batch_size, num_candidates, 8)
 
         # Listener processes multimodal message
-        probabilities = listener(token_ids, candidate_objects, gesture_ids)
+        listener_out = listener(token_ids, candidate_objects, gesture_ids)
+        probabilities = listener_out.probs
 
         # Compute loss using logits instead of discrete tokens for gradient flow
         target_indices = torch.randint(0, num_candidates, (batch_size,))
