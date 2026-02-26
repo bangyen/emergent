@@ -60,29 +60,42 @@ class TestTrainingSmoke:
 
         try:
             # Run training twice with the same seed
+            checkpoints = []
             for run_id in [1, 2]:
                 run_dir = tmp_path / f"run_{run_id}"
                 run_dir.mkdir()
                 os.chdir(run_dir)
 
-                # Set seed and run
+                seed = 999
                 train(
                     n_steps=10,
                     k=3,
                     v=8,
                     message_length=1,
-                    seed=999,  # Same seed for both runs
+                    seed=seed,
                     batch_size=4,
                     learning_rate=1e-3,
                     hidden_size=32,
                     use_sequence_models=False,
                 )
 
-                # We don't have a metrics.csv anymore, but we can check if it runs
-                assert os.path.exists("outputs/checkpoints/final_model.pt")
+                checkpoint_path = "outputs/checkpoints/final_model.pt"
+                assert os.path.exists(checkpoint_path)
+                checkpoints.append(torch.load(checkpoint_path, weights_only=False))
                 os.chdir(tmp_path)
 
-            logger.info("Reproducibility test passed (smoke test).")
+            # Compare state dicts for reproducibility
+            for key in ["speaker_state_dict", "listener_state_dict"]:
+                sd1 = checkpoints[0][key]
+                sd2 = checkpoints[1][key]
+
+                assert sd1.keys() == sd2.keys()
+                for k in sd1:
+                    assert torch.allclose(
+                        sd1[k], sd2[k]
+                    ), f"Weights for {k} in {key} differ"
+
+            logger.info("Reproducibility test passed (weights are identical).")
 
         finally:
             os.chdir(original_cwd)
