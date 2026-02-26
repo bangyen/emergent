@@ -35,9 +35,9 @@ class DiscreteChannel:
     ) -> torch.Tensor:
         """Transmit message through the discrete channel.
 
-        This method takes speaker logits and converts them to discrete tokens,
-        enforcing the vocabulary range [0, vocabulary_size-1]. During training,
-        it supports straight-through gradients for differentiable discrete sampling.
+        This method handles the conversion of raw logits to discrete tokens.
+        During training, it maintains differentiability using straight-through
+        gradients.
 
         Args:
             speaker_logits: Tensor of shape (batch_size, message_length, vocabulary_size)
@@ -45,15 +45,10 @@ class DiscreteChannel:
             temperature: Temperature for sampling (default: 1.0).
 
         Returns:
-            Tensor of shape (batch_size, message_length) containing discrete token IDs
-            in the range [0, vocabulary_size-1].
-
-        Raises:
-            ValueError: If logits tensor has incorrect shape or vocabulary size mismatch.
+            Tensor of shape (batch_size, message_length) containing discrete token indices.
         """
         batch_size, message_length, vocab_size = speaker_logits.shape
 
-        # Validate input shape
         if message_length != self.config.message_length:
             raise ValueError(
                 f"Expected message_length={self.config.message_length}, "
@@ -68,23 +63,13 @@ class DiscreteChannel:
         # Apply temperature scaling
         scaled_logits = speaker_logits / temperature
 
-        # Sample tokens using Gumbel-Softmax for differentiable discrete sampling
         if speaker_logits.requires_grad:
-            # Training mode: use Gumbel-Softmax with straight-through
-            gumbel_noise = -torch.log(
-                -torch.log(torch.rand_like(scaled_logits) + 1e-20) + 1e-20
-            )
-            noisy_logits = scaled_logits + gumbel_noise
-            probs = F.softmax(noisy_logits, dim=-1)
-
-            # Straight-through: use hard samples in forward pass
+            # Training mode: differentiable discrete sampling
+            probs = F.gumbel_softmax(scaled_logits, tau=1.0, hard=True, dim=-1)
             token_ids = torch.argmax(probs, dim=-1)
         else:
-            # Inference mode: use argmax for discrete tokens
+            # Inference mode: greedy sampling
             token_ids = torch.argmax(scaled_logits, dim=-1)
-
-        # Enforce token range constraint
-        token_ids = torch.clamp(token_ids, 0, self.config.vocabulary_size - 1)
 
         return token_ids
 
@@ -96,67 +81,26 @@ class DiscreteChannel:
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Transmit multimodal message through the discrete channel.
 
-        This method takes speaker logits for both tokens and gestures and converts
-        them to discrete outputs, enforcing vocabulary and gesture range constraints.
-        During training, it supports straight-through gradients for differentiable
-        discrete sampling.
-
         Args:
-            speaker_logits: Tensor of shape (batch_size, message_length, vocabulary_size)
-                          containing raw logits from the speaker for tokens.
-            gesture_logits: Tensor of shape (batch_size, message_length, gesture_size)
-                          containing raw logits from the speaker for gestures.
+            speaker_logits: Tensor of shape (batch_size, message_length, vocabulary_size).
+            gesture_logits: Tensor of shape (batch_size, message_length, gesture_size).
             temperature: Temperature for sampling (default: 1.0).
 
         Returns:
-            A tuple containing:
-            - token_ids: Tensor of shape (batch_size, message_length) with discrete token IDs
-            - gesture_ids: Tensor of shape (batch_size, message_length) with discrete gesture IDs
-
-        Raises:
-            ValueError: If logits tensors have incorrect shapes or size mismatches.
+            A tuple of (tokens, gestures).
         """
-        batch_size, message_length, vocab_size = speaker_logits.shape
-        _, _, gesture_size = gesture_logits.shape
+        tokens = self.send(speaker_logits, temperature)
 
-        # Validate input shapes
-        if message_length != self.config.message_length:
-            raise ValueError(
-                f"Expected message_length={self.config.message_length}, "
-                f"got {message_length}"
-            )
-        if vocab_size != self.config.vocabulary_size:
-            raise ValueError(
-                f"Expected vocabulary_size={self.config.vocabulary_size}, "
-                f"got {vocab_size}"
-            )
-        if gesture_size != self.config.gesture_size:
-            raise ValueError(
-                f"Expected gesture_size={self.config.gesture_size}, got {gesture_size}"
-            )
-
-        # Sample tokens
-        token_ids = self.send(speaker_logits, temperature)
-
-        # Sample gestures using the same logic
-        scaled_gesture_logits = gesture_logits / temperature
-
+        # Sample gestures using similar logic
         if gesture_logits.requires_grad:
-            # Training mode: use Gumbel-Softmax with straight-through
-            gumbel_noise = -torch.log(
-                -torch.log(torch.rand_like(scaled_gesture_logits) + 1e-20) + 1e-20
+            gesture_probs = F.gumbel_softmax(
+                gesture_logits / temperature, tau=1.0, hard=True, dim=-1
             )
-            noisy_gesture_logits = scaled_gesture_logits + gumbel_noise
-            gesture_probs = F.softmax(noisy_gesture_logits, dim=-1)
-            gesture_ids = torch.argmax(gesture_probs, dim=-1)
+            gestures = torch.argmax(gesture_probs, dim=-1)
         else:
-            # Inference mode: use argmax for discrete gestures
-            gesture_ids = torch.argmax(scaled_gesture_logits, dim=-1)
+            gestures = torch.argmax(gesture_logits / temperature, dim=-1)
 
-        # Enforce gesture range constraint
-        gesture_ids = torch.clamp(gesture_ids, 0, self.config.gesture_size - 1)
-
-        return token_ids, gesture_ids
+        return tokens, gestures
 
     def compute_message_cost(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Compute the total cost of a message based on token-specific costs.

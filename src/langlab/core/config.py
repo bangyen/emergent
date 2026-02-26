@@ -18,10 +18,10 @@ class CommunicationConfig:
     neural network architecture, multimodal support, and reproducibility settings.
 
     Attributes:
-        vocabulary_size: Number of tokens in the communication vocabulary (default: 10).
-        message_length: Length of messages in tokens (default: 1).
-        hidden_size: Hidden dimension size for neural networks (default: 64).
-        object_dim: Dimension of object encodings (default: 5).
+        vocabulary_size: Number of tokens in the communication vocabulary (default: 16).
+        message_length: Length of messages in tokens (default: 2).
+        hidden_size: Hidden dimension size for neural networks (default: 128).
+        object_dim: Dimension of object encodings (default: 8, matching TOTAL_ATTRIBUTES).
         gesture_size: Number of discrete gestures in multimodal communication (default: 5).
         multimodal: Whether to enable multimodal communication with gestures (default: False).
         distractors: Number of distractor objects in pragmatic scenarios (default: 0).
@@ -39,7 +39,7 @@ class CommunicationConfig:
     vocabulary_size: int = 16
     message_length: int = 2
     hidden_size: int = 128
-    object_dim: int = 8
+    object_dim: int = 8  # Default matching 3 colors + 3 shapes + 2 sizes
     gesture_size: int = 5
     multimodal: bool = False
     distractors: int = 0

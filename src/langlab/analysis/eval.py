@@ -70,22 +70,22 @@ def evaluate(
 
     with torch.no_grad():
         for batch in dataloader:
-            scene_tensor, target_indices, candidate_objects = batch
-            scene_tensor, target_indices, candidate_objects = (
+            scene_tensor, target_indices = batch
+            scene_tensor, target_indices = (
                 scene_tensor.to(device),
                 target_indices.to(device),
-                candidate_objects.to(device),
             )
 
             batch_size = scene_tensor.size(0)
             target_objects = scene_tensor[torch.arange(batch_size), target_indices]
 
             # Speaker
-            _, tokens = speaker(target_objects)
+            speaker_output = speaker(target_objects)
+            tokens = speaker_output.tokens
 
             # Listener
-            probs = listener(tokens, scene_tensor)
-            preds = torch.argmax(probs, dim=1)
+            listener_output = listener(tokens, scene_tensor)
+            preds = listener_output.preds
 
             acc = (preds == target_indices).float().mean()
             total_acc += acc.item()
