@@ -26,7 +26,7 @@ class TestCompositionalSplits:
 
         # Check that no training scene contains blue triangle objects
         for i in range(len(train_dataset)):
-            scene_tensor, _, _ = train_dataset[i]
+            scene_tensor, _ = train_dataset[i]
 
             # Decode objects from tensor to check attributes
             for obj_idx in range(k):
@@ -84,8 +84,8 @@ class TestCompositionalSplits:
             assert len(dataset1) == len(dataset2), f"Split {split_name} sizes differ"
 
             for i in range(len(dataset1)):
-                scene1, target1, _ = dataset1[i]
-                scene2, target2, _ = dataset2[i]
+                scene1, target1 = dataset1[i]
+                scene2, target2 = dataset2[i]
 
                 assert torch.equal(
                     scene1, scene2
@@ -112,8 +112,8 @@ class TestCompositionalSplits:
                 break
 
             for i in range(min(len(dataset1), len(dataset2))):
-                scene1, _, _ = dataset1[i]
-                scene2, _, _ = dataset2[i]
+                scene1, _ = dataset1[i]
+                scene2, _ = dataset2[i]
                 if not torch.equal(scene1, scene2):
                     splits_different = True
                     break
@@ -135,7 +135,7 @@ class TestCompositionalSplits:
         # Check that compositional split contains blue triangle objects
         found_heldout = False
         for i in range(len(compo_dataset)):
-            scene_tensor, _, _ = compo_dataset[i]
+            scene_tensor, _ = compo_dataset[i]
 
             for obj_idx in range(k):
                 obj_encoding = scene_tensor[obj_idx]
@@ -173,10 +173,9 @@ class TestCompositionalDataset:
         assert len(dataset) == 2
 
         # Test indexing
-        scene_tensor, target_idx, candidates = dataset[0]
+        scene_tensor, target_idx = dataset[0]
         assert scene_tensor.shape == (1, len(COLORS) + len(SHAPES) + len(SIZES))
         assert target_idx == 0
-        assert torch.equal(scene_tensor, candidates)
 
     def test_compositional_dataset_iteration(self) -> None:
         """Test CompositionalDataset iteration."""
@@ -192,11 +191,10 @@ class TestCompositionalDataset:
         assert len(scenes_list) == 2
 
         # Check that iteration produces same results as indexing
-        for i, (scene_tensor, target_idx, candidates) in enumerate(scenes_list):
-            expected_scene, expected_target, expected_candidates = dataset[i]
+        for i, (scene_tensor, target_idx) in enumerate(scenes_list):
+            expected_scene, expected_target = dataset[i]
             assert torch.equal(scene_tensor, expected_scene)
             assert target_idx == expected_target
-            assert torch.equal(candidates, expected_candidates)
 
     def test_compositional_dataset_index_bounds(self) -> None:
         """Test CompositionalDataset index bounds checking."""

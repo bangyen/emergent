@@ -60,13 +60,15 @@ def test_deterministic_sampling_with_seed(
             set_seed(deterministic_config.seed)
 
         # Speaker forward pass
-        logits, tokens, _, _ = speaker(object_encoding)
+        speaker_output = speaker(object_encoding)
+        logits, tokens = speaker_output.logits, speaker_output.tokens
 
         # Channel forward pass
         channel_tokens = channel.send(logits)
 
         # Listener forward pass
-        probabilities = listener(message_tokens, candidate_objects)
+        listener_output = listener(message_tokens, candidate_objects)
+        probabilities = listener_output.probs
 
         results.append(
             {
@@ -129,7 +131,8 @@ def test_deterministic_with_different_seeds() -> None:
         run_results = []
         for _ in range(2):
             set_seed(seed)
-            logits, tokens, _, _ = speaker(object_encoding)
+            speaker_output = speaker(object_encoding)
+            logits, tokens = speaker_output.logits, speaker_output.tokens
             run_results.append({"logits": logits.clone(), "tokens": tokens.clone()})
 
         # Results within same seed should be identical
@@ -184,11 +187,13 @@ def test_reproducible_agent_initialization() -> None:
 
     if config.seed is not None:
         set_seed(config.seed)
-    logits1, tokens1, _, _ = speaker1(object_encoding)
+    speaker_output1 = speaker1(object_encoding)
+    logits1, tokens1 = speaker_output1.logits, speaker_output1.tokens
 
     if config.seed is not None:
         set_seed(config.seed)
-    logits2, tokens2, _, _ = speaker2(object_encoding)
+    speaker_output2 = speaker2(object_encoding)
+    logits2, tokens2 = speaker_output2.logits, speaker_output2.tokens
 
     # Results should be identical
     assert torch.allclose(logits1, logits2), "Forward pass results should be identical"
@@ -247,14 +252,19 @@ def test_training_mode_stochastic_behavior(
     speaker.train()
     if deterministic_config.seed is not None:
         set_seed(deterministic_config.seed)
-    logits_train, tokens_train, _, _ = speaker(object_encoding)
+    speaker_output_train = speaker(object_encoding)
+    logits_train, _tokens_train = (
+        speaker_output_train.logits,
+        speaker_output_train.tokens,
+    )
     channel.send(logits_train)
 
     # Evaluation mode (deterministic)
     speaker.eval()
     if deterministic_config.seed is not None:
         set_seed(deterministic_config.seed)
-    logits_eval, tokens_eval, _, _ = speaker(object_encoding)
+    speaker_output_eval = speaker(object_encoding)
+    logits_eval, _tokens_eval = speaker_output_eval.logits, speaker_output_eval.tokens
     channel.send(logits_eval)
 
     # Both logits should have reasonable shapes and values

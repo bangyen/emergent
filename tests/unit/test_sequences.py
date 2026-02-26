@@ -46,7 +46,8 @@ def test_speaker_seq_shapes(
     batch_size = 4
     object_encoding = torch.randn(batch_size, TOTAL_ATTRIBUTES)
 
-    logits, tokens = speaker_seq(object_encoding)
+    speaker_out = speaker_seq(object_encoding)
+    logits, tokens = speaker_out.logits, speaker_out.tokens
 
     # Check shapes
     assert logits.shape == (batch_size, config.message_length, config.vocabulary_size)
@@ -68,8 +69,10 @@ def test_speaker_seq_autoregressive(
     object_encoding = torch.randn(batch_size, TOTAL_ATTRIBUTES)
 
     # Generate with different temperatures
-    _, tokens_cold = speaker_seq(object_encoding, temperature=0.1)
-    _, tokens_hot = speaker_seq(object_encoding, temperature=2.0)
+    out_cold = speaker_seq(object_encoding, temperature=0.1)
+    tokens_cold = out_cold.tokens
+    out_hot = speaker_seq(object_encoding, temperature=2.0)
+    tokens_hot = out_hot.tokens
 
     # Both should have correct shapes
     assert tokens_cold.shape == (batch_size, config.message_length)
@@ -96,7 +99,8 @@ def test_listener_seq_scores(
     )
     candidate_objects = torch.randn(batch_size, num_candidates, TOTAL_ATTRIBUTES)
 
-    probabilities = listener_seq(message_tokens, candidate_objects)
+    listener_out = listener_seq(message_tokens, candidate_objects)
+    probabilities = listener_out.probs
 
     # Check shape
     assert probabilities.shape == (batch_size, num_candidates)
@@ -126,7 +130,8 @@ def test_listener_seq_different_candidates(
     # Test with different numbers of candidates
     for num_candidates in [3, 5, 8]:
         candidate_objects = torch.randn(batch_size, num_candidates, TOTAL_ATTRIBUTES)
-        probabilities = listener_seq(message_tokens, candidate_objects)
+        listener_out = listener_seq(message_tokens, candidate_objects)
+        probabilities = listener_out.probs
 
         assert probabilities.shape == (batch_size, num_candidates)
         prob_sums = probabilities.sum(dim=1)
@@ -145,7 +150,8 @@ def test_sequence_models_gradient_flow(
     candidate_objects = torch.randn(batch_size, num_candidates, TOTAL_ATTRIBUTES)
 
     # Forward pass through SpeakerSeq (use logits directly for gradient flow)
-    logits, generated_tokens = speaker_seq(object_encoding)
+    speaker_out = speaker_seq(object_encoding)
+    logits, _generated_tokens = speaker_out.logits, speaker_out.tokens
 
     # Use logits instead of generated tokens for gradient flow
     # Convert logits to probabilities for the listener
@@ -165,7 +171,8 @@ def test_sequence_models_gradient_flow(
     dummy_tokens = torch.randint(
         0, config.vocabulary_size, (batch_size, config.message_length)
     )
-    probabilities = listener_seq(dummy_tokens, candidate_objects)
+    listener_out = listener_seq(dummy_tokens, candidate_objects)
+    probabilities = listener_out.probs
 
     # Compute a simple loss using logits from speaker
     speaker_loss = logits.mean()  # Simple loss on logits

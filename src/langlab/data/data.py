@@ -65,7 +65,7 @@ class ReferentialGameDataset(Dataset):
         """Return the number of scenes in the dataset."""
         return self.n_scenes
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         """Get a single scene from the dataset.
 
         Args:
@@ -75,7 +75,6 @@ class ReferentialGameDataset(Dataset):
             A tuple containing:
             - scene_tensor: Tensor of shape (K, TOTAL_ATTRIBUTES) with encoded objects
             - target_idx: Index of the target object in the scene
-            - candidate_encodings: Same as scene_tensor (for compatibility)
         """
         if idx >= len(self):
             raise IndexError(
@@ -85,12 +84,9 @@ class ReferentialGameDataset(Dataset):
         scene_tensor = self.scenes[idx]
         target_idx = self.target_indices[idx]
 
-        # For referential games, candidates are all objects in the scene
-        candidate_encodings = scene_tensor
+        return scene_tensor, target_idx
 
-        return scene_tensor, target_idx, candidate_encodings
-
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int, torch.Tensor]]:
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
         """Iterate over all scenes in the dataset."""
         for i in range(len(self)):
             yield self[i]
@@ -144,7 +140,7 @@ class DistractorDataset(Dataset):
         """Return the number of scenes in the dataset."""
         return len(self.scenes)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         """Get a single sample from the dataset.
 
         Args:
@@ -154,7 +150,6 @@ class DistractorDataset(Dataset):
             A tuple containing:
             - scene_tensor: Tensor of shape (k, object_dim) with encoded objects
             - target_idx: Index of the target object in the scene
-            - candidate_encodings: Same as scene_tensor (for compatibility)
         """
         if idx >= len(self):
             raise IndexError(
@@ -168,12 +163,9 @@ class DistractorDataset(Dataset):
         encoded_objects = [encode_object(obj) for obj in scene_objects]
         scene_tensor = torch.stack(encoded_objects)
 
-        # For referential games, candidates are all objects in the scene
-        candidate_encodings = scene_tensor
+        return scene_tensor, target_idx
 
-        return scene_tensor, target_idx, candidate_encodings
-
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int, torch.Tensor]]:
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
         """Iterate over all scenes in the dataset."""
         for i in range(len(self)):
             yield self[i]
@@ -308,7 +300,7 @@ class CompositionalDataset(Dataset):
         """Return the number of scenes in the dataset."""
         return len(self.scenes)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         """Get a single scene from the dataset.
 
         Args:
@@ -318,20 +310,13 @@ class CompositionalDataset(Dataset):
             A tuple containing:
             - scene_tensor: Tensor of shape (K, TOTAL_ATTRIBUTES) with encoded objects
             - target_idx: Index of the target object in the scene
-            - candidate_encodings: Same as scene_tensor (for compatibility)
         """
-        if idx >= len(self):
-            raise IndexError(
-                f"Index {idx} out of range for dataset of size {len(self)}"
-            )
-
         scene_tensor = self.encoded_scenes[idx]
         target_idx = self.targets[idx]
-        candidate_encodings = scene_tensor
 
-        return scene_tensor, target_idx, candidate_encodings
+        return scene_tensor, target_idx
 
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int, torch.Tensor]]:
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
         """Iterate over all scenes in the dataset."""
         for i in range(len(self)):
             yield self[i]

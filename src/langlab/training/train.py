@@ -112,23 +112,23 @@ def train(
         if step >= n_steps:
             break
 
-        scene, targets, _ = batch
+        scene, targets = batch
         scene, targets = scene.to(device), targets.to(device)
 
         # Speaker
         target_objs = scene[torch.arange(batch_size), targets]
         speaker_output = speaker(target_objs)
-        speaker_logits, message_tokens = speaker_output[0], speaker_output[1]
+        speaker_logits, tokens = speaker_output.logits, speaker_output.tokens
 
         # Listener
-        listener_probs = listener(message_tokens, scene)
-        preds = torch.argmax(listener_probs, dim=1)
+        listener_output = listener(tokens, scene)
+        probs, preds = listener_output.probs, listener_output.preds
 
         # Rewards and Loss
         rewards = (preds == targets).float()
         baseline.update(rewards.mean().item())
 
-        l_loss = F.cross_entropy(torch.log(listener_probs + 1e-8), targets)
+        l_loss = F.cross_entropy(torch.log(probs + 1e-8), targets)
         s_loss = compute_speaker_loss(
             speaker_logits, rewards, baseline.average, entropy_weight
         )

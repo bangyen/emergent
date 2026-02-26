@@ -27,17 +27,13 @@ class TestReferentialGameDataset:
         k = 4
         dataset = ReferentialGameDataset(n_scenes, k, seed=42)
 
-        scene_tensor, target_idx, candidate_encodings = dataset[0]
+        scene_tensor, target_idx = dataset[0]
 
         # Scene tensor should be [K, TOTAL_ATTRIBUTES]
         assert scene_tensor.shape == (k, TOTAL_ATTRIBUTES)
 
         # Target index should be valid
         assert 0 <= target_idx < k
-
-        # Candidate encodings should match scene tensor
-        assert candidate_encodings.shape == scene_tensor.shape
-        assert torch.equal(scene_tensor, candidate_encodings)
 
     def test_dataset_reproducible(self) -> None:
         """Test that dataset generation is reproducible with same seed."""
@@ -50,12 +46,11 @@ class TestReferentialGameDataset:
 
         # Check that all scenes are identical
         for i in range(n_scenes):
-            scene1, target1, candidates1 = dataset1[i]
-            scene2, target2, candidates2 = dataset2[i]
+            scene1, target1 = dataset1[i]
+            scene2, target2 = dataset2[i]
 
             assert torch.equal(scene1, scene2)
             assert target1 == target2
-            assert torch.equal(candidates1, candidates2)
 
     def test_dataset_different_seeds(self) -> None:
         """Test that different seeds produce different datasets."""
@@ -68,8 +63,8 @@ class TestReferentialGameDataset:
         # Check that at least some scenes are different
         scenes_different = False
         for i in range(n_scenes):
-            scene1, _, _ = dataset1[i]
-            scene2, _, _ = dataset2[i]
+            scene1, _ = dataset1[i]
+            scene2, _ = dataset2[i]
             if not torch.equal(scene1, scene2):
                 scenes_different = True
                 break
@@ -86,11 +81,10 @@ class TestReferentialGameDataset:
         assert len(scenes) == n_scenes
 
         # Check that iteration produces same results as indexing
-        for i, (scene_tensor, target_idx, candidates) in enumerate(scenes):
-            expected_scene, expected_target, expected_candidates = dataset[i]
+        for i, (scene_tensor, target_idx) in enumerate(scenes):
+            expected_scene, expected_target = dataset[i]
             assert torch.equal(scene_tensor, expected_scene)
             assert target_idx == expected_target
-            assert torch.equal(candidates, expected_candidates)
 
     def test_dataset_index_bounds(self) -> None:
         """Test that dataset raises IndexError for out-of-bounds access."""
@@ -130,12 +124,10 @@ class TestReferentialGameDataset:
         k = 3
         dataset = ReferentialGameDataset(n_scenes, k, seed=42)
 
-        scene_tensor, target_idx, candidates = dataset[0]
+        scene_tensor, target_idx = dataset[0]
 
         assert isinstance(scene_tensor, torch.Tensor)
-        assert isinstance(candidates, torch.Tensor)
         assert isinstance(target_idx, int)
 
         # Tensors should be float32
         assert scene_tensor.dtype == torch.float32
-        assert candidates.dtype == torch.float32
