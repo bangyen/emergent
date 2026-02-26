@@ -4,7 +4,7 @@ This module contains unit tests for language analysis functions,
 focusing on training log loading and processing.
 """
 
-from src.langlab.analysis.analysis import load_training_logs
+from langlab.analysis.analysis import load_training_logs
 
 
 class TestTrainingLogsAnalysis:

@@ -7,10 +7,10 @@ referential games, verifying correct output shapes and behavior.
 import pytest
 import torch
 
-from src.langlab.core.agents import Speaker, Listener
-from src.langlab.core.channel import DiscreteChannel
-from src.langlab.core.config import CommunicationConfig
-from src.langlab.data.world import TOTAL_ATTRIBUTES
+from langlab.core.agents import Speaker, Listener
+from langlab.core.channel import DiscreteChannel
+from langlab.core.config import CommunicationConfig
+from langlab.data.world import TOTAL_ATTRIBUTES
 
 
 @pytest.fixture
@@ -126,15 +126,6 @@ def test_channel_token_range(
     assert (
         max_token < vocab_size
     ), f"Maximum token should be < {vocab_size}, got {max_token}"
-
-    # Test validation method
-    assert channel.validate_tokens(token_ids), "Channel should validate its own tokens"
-
-    # Test invalid tokens
-    invalid_tokens = torch.tensor([[-1], [vocab_size]])
-    assert not channel.validate_tokens(
-        invalid_tokens
-    ), "Channel should reject invalid tokens"
 
 
 def test_channel_token_range_edge_cases(

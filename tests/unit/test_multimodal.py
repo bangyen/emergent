@@ -7,9 +7,9 @@ synchronized token and gesture lengths, and joint attention mechanisms.
 import torch
 import torch.nn.functional as F
 
-from src.langlab.core.config import CommunicationConfig
-from src.langlab.core.channel import DiscreteChannel
-from src.langlab.core.agents import Speaker, Listener
+from langlab.core.config import CommunicationConfig
+from langlab.core.channel import DiscreteChannel
+from langlab.core.agents import Speaker, Listener
 
 
 class TestMultimodalChannel:
@@ -60,46 +60,6 @@ class TestMultimodalChannel:
         # Check gesture range
         assert gesture_ids.min() >= 0
         assert gesture_ids.max() < config.gesture_size
-
-    def test_channel_validation(self) -> None:
-        """Test channel validation for tokens and gestures."""
-        config = CommunicationConfig(
-            vocabulary_size=10,
-            message_length=2,
-            gesture_size=5,
-            multimodal=True,
-        )
-        channel = DiscreteChannel(config)
-
-        # Valid tokens and gestures
-        valid_tokens = torch.tensor([[0, 5], [9, 2]])
-        valid_gestures = torch.tensor([[0, 4], [2, 1]])
-
-        assert channel.validate_tokens(valid_tokens) is True
-        assert channel.validate_gestures(valid_gestures) is True
-
-        # Invalid tokens
-        invalid_tokens = torch.tensor([[0, 10], [9, 2]])  # 10 >= vocab_size
-        assert channel.validate_tokens(invalid_tokens) is False
-
-        # Invalid gestures
-        invalid_gestures = torch.tensor([[0, 5], [9, 2]])  # 5 >= gesture_size
-        assert channel.validate_gestures(invalid_gestures) is False
-
-    def test_channel_ranges(self) -> None:
-        """Test channel range methods."""
-        config = CommunicationConfig(
-            vocabulary_size=10,
-            gesture_size=5,
-            multimodal=True,
-        )
-        channel = DiscreteChannel(config)
-
-        token_range = channel.get_token_range()
-        gesture_range = channel.get_gesture_range()
-
-        assert token_range == (0, 9)
-        assert gesture_range == (0, 4)
 
 
 class TestMultimodalAgents:

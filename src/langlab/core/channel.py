@@ -158,58 +158,6 @@ class DiscreteChannel:
 
         return token_ids, gesture_ids
 
-    def validate_tokens(self, token_ids: torch.Tensor) -> bool:
-        """Validate that token IDs are within the allowed range.
-
-        Args:
-            token_ids: Tensor containing token IDs to validate.
-
-        Returns:
-            True if all tokens are in range [0, vocabulary_size-1], False otherwise.
-        """
-        min_token = token_ids.min().item()
-        max_token = token_ids.max().item()
-
-        return (
-            min_token >= 0
-            and max_token < self.config.vocabulary_size
-            and token_ids.dtype in [torch.int64, torch.int32, torch.long]
-        )
-
-    def validate_gestures(self, gesture_ids: torch.Tensor) -> bool:
-        """Validate that gesture IDs are within the allowed range.
-
-        Args:
-            gesture_ids: Tensor containing gesture IDs to validate.
-
-        Returns:
-            True if all gestures are in range [0, gesture_size-1], False otherwise.
-        """
-        min_gesture = gesture_ids.min().item()
-        max_gesture = gesture_ids.max().item()
-
-        return (
-            min_gesture >= 0
-            and max_gesture < self.config.gesture_size
-            and gesture_ids.dtype in [torch.int64, torch.int32, torch.long]
-        )
-
-    def get_token_range(self) -> tuple[int, int]:
-        """Get the valid token range for this channel.
-
-        Returns:
-            Tuple of (min_token, max_token) representing the valid range [0, vocabulary_size-1].
-        """
-        return (0, self.config.vocabulary_size - 1)
-
-    def get_gesture_range(self) -> tuple[int, int]:
-        """Get the valid gesture range for this channel.
-
-        Returns:
-            Tuple of (min_gesture, max_gesture) representing the valid range [0, gesture_size-1].
-        """
-        return (0, self.config.gesture_size - 1)
-
     def compute_message_cost(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Compute the total cost of a message based on token-specific costs.
 
