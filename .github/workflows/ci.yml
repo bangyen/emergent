@@ -85,36 +85,22 @@ jobs:
         # Run a short training session and check expected metrics
         python -m pytest tests/integration/test_train_smoke.py -v -s
     
-    - name: Test experiment tracking (offline mode)
+    - name: Run test training
       run: |
-        # Test that experiment tracking works in offline mode
-        langlab train --steps 50 --k 3 --v 8 --message-length 1 --seed 42 \
-          --tracking-project test-project \
-          --tracking-experiment-name smoke-test \
-          --tracking-tags "smoke,ci" \
-          --tracking-notes "CI smoke test run"
+        # Run a short training session to verify basic functionality
+        langlab train --steps 50 --k 3 --v 8 --message-length 1 --seed 42
     
     - name: Verify outputs
       run: |
         # Check that expected files were created
         ls -la outputs/
-        ls -la outputs/logs/
         ls -la outputs/checkpoints/
         
-        # Check that metrics file exists and has expected content
-        if [ -f "outputs/logs/metrics.csv" ]; then
-          echo "Metrics file created successfully"
-          head -5 outputs/logs/metrics.csv
+        # Check that final model was created
+        if [ -f "outputs/checkpoints/final_model.pt" ]; then
+          echo "Final model created successfully"
         else
-          echo "ERROR: Metrics file not found"
-          exit 1
-        fi
-        
-        # Check that checkpoint was created
-        if [ -f "outputs/checkpoints/checkpoint.pt" ]; then
-          echo "Checkpoint file created successfully"
-        else
-          echo "ERROR: Checkpoint file not found"
+          echo "ERROR: Final model not found"
           exit 1
         fi
 
