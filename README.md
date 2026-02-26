@@ -34,10 +34,9 @@ Or open in Colab: [Colab Notebook](https://colab.research.google.com/github/bang
 ## Features
 
 - **Multi-Agent Communication** — Speaker-listener neural agents with discrete message generation and contrastive learning achieving 87.5% accuracy.  
-- **Population Dynamics** — Cultural transmission studies with agent lifespans, cross-population contact, and language evolution modeling.  
 - **Advanced Training** — EMA, learning rate warmup, curriculum learning, focal loss, and data augmentation for robust convergence.  
-- **Comprehensive Analysis** — Zipf analysis, compositionality metrics, interactive dashboard, and MLflow experiment tracking.  
-- **Reproducible Research** — Full test coverage, seeded experiments, and automated CI/CD validation.
+- **Comprehensive Analysis** — Zipf analysis and compositionality metrics.
+- **Reproducible Research** — Seeded experiments and automated CI/CD validation.
 
 ## Repo Structure
 
@@ -47,10 +46,11 @@ emergent/
 ├── src/langlab/         # Core implementation
 │   ├── core/            # Agent architectures and configs
 │   ├── training/        # Training loops and optimization
-│   ├── experiments/     # Population dynamics and ablation studies
+│   ├── data/            # World generation and datasets
 │   ├── analysis/        # Language analysis and evaluation
 │   ├── apps/            # CLI interface
-│   └── tracking/        # MLflow experiment tracking
+│   ├── tracking/        # Experiment tracking
+│   └── utils/           # Shared utilities
 ├── tests/               # Unit and integration tests
 ├── docs/                # Documentation and figures
 └── outputs/             # Experiment results and checkpoints

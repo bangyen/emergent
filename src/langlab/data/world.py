@@ -11,7 +11,6 @@ import torch
 
 from ..utils.utils import set_seed
 
-
 # Object attribute definitions
 COLORS = ["red", "green", "blue"]
 SHAPES = ["circle", "square", "triangle"]
