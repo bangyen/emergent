@@ -4,10 +4,10 @@
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 [![License](https://img.shields.io/github/license/bangyen/emergent)](LICENSE)
 
-**Multi-agent emergent language learning: 87.5% accuracy with contrastive learning, 3x faster convergence, fully reproducible referential games**
+**Multi-agent emergent language learning: Modular framework for studying communication protocols in fully reproducible referential games**
 
 <p align="center">
-  <img src="docs/smoothed_accuracy.png" alt="Training progress showing emergent language accuracy" width="600">
+  <!-- Note: Placeholder for future training progress visualization -->
 </p>
 
 ## Quickstart
@@ -26,17 +26,17 @@ Or open in Colab: [Colab Notebook](https://colab.research.google.com/github/bang
 
 ## Results
 
-| Metric | Baseline | This Project | Improvement |
-|--------|----------|--------------|-------------|
-| Referential Accuracy | 20.0% | **87.5%** | +67.5% |
-| Compositional Generalization | 20.0% | **51.5%** | +31.5% |
+| Metric | Value |
+|--------|-------|
+| Referential Accuracy | ~40-50% (Baseline) |
+| Compositional Generalization | Supported |
 
 ## Features
 
-- **Multi-Agent Communication** — Speaker-listener neural agents with discrete message generation and contrastive learning achieving 87.5% accuracy.  
-- **Advanced Training** — EMA, learning rate warmup, curriculum learning, focal loss, and data augmentation for robust convergence.  
-- **Comprehensive Analysis** — Zipf analysis and compositionality metrics.
-- **Reproducible Research** — Seeded experiments and automated CI/CD validation.
+- **Multi-Agent Communication** — Speaker-listener neural agents with discrete message generation using Gumbel-Softmax for differentiable training.
+- **Flexible Architectures** — Support for MLP and sequence-based (RNN) agents with residual connections and layer normalization.
+- **Comprehensive Analysis** — Tools for evaluation on IID and compositional splits, and research report generation.
+- **Reproducible Research** — Seeded experiments and automated test validation.
 
 ## Repo Structure
 
@@ -44,12 +44,11 @@ Or open in Colab: [Colab Notebook](https://colab.research.google.com/github/bang
 emergent/
 ├── emergent_demo.ipynb  # Colab notebook demo
 ├── src/langlab/         # Core implementation
-│   ├── core/            # Agent architectures and configs
-│   ├── training/        # Training loops and optimization
+│   ├── core/            # Agent architectures and channel logic
+│   ├── training/        # Training loops and grounding protocols
 │   ├── data/            # World generation and datasets
-│   ├── analysis/        # Language analysis and evaluation
+│   ├── analysis/        # Evaluation and report generation
 │   ├── apps/            # CLI interface
-│   ├── tracking/        # Experiment tracking
 │   └── utils/           # Shared utilities
 ├── tests/               # Unit and integration tests
 ├── docs/                # Documentation and figures
@@ -58,9 +57,9 @@ emergent/
 
 ## Validation
 
-- ✅ Overall test coverage of 80% (`pytest`)
+- ✅ Overall test coverage of ~70% (`pytest`)
 - ✅ Reproducible seeds for experiments
-- ✅ Benchmark scripts included
+- ✅ Core CLI functionality verified
 
 ## References
 
