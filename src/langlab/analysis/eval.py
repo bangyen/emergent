@@ -6,13 +6,72 @@ This module provides essential evaluation functionality for referential games.
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
-from ..core.agents import Listener, ListenerSeq, Speaker, SpeakerSeq
-from ..data.data import ReferentialGameDataset
+from ..core.agents import (
+    DotListener,
+    Listener,
+    ListenerSeq,
+    PragmaticListener,
+    Speaker,
+    SpeakerSeq,
+)
+from ..core.config import CommunicationConfig
+from ..data.data import (
+    DistractorDataset,
+    ReferentialGameDataset,
+    make_compositional_splits,
+    make_heldout_target_dataset,
+)
+from ..data.world import get_world
+from .language import language_metrics
 from ..utils.utils import get_device, get_logger
 
 logger = get_logger(__name__)
+
+
+def build_agents(config: CommunicationConfig, device: torch.device) -> Tuple[Any, Any]:
+    """Instantiate the Speaker/Listener pair that matches ``config``."""
+    if getattr(config, "use_sequence_models", False):
+        return SpeakerSeq(config).to(device), ListenerSeq(config).to(device)
+    listener_cls = (
+        DotListener if getattr(config, "listener_type", "mlp") == "dot" else Listener
+    )
+    return Speaker(config).to(device), listener_cls(config).to(device)
+
+
+def accuracy(
+    speaker: Any,
+    listener: Any,
+    dataset: Dataset,
+    device: torch.device,
+    batch_size: int = 256,
+) -> float:
+    """Greedy referential accuracy of a Speaker/Listener pair on ``dataset``.
+
+    Agents are put in eval mode for the pass and restored to their previous mode.
+    """
+    was_training = speaker.training, listener.training
+    speaker.eval()
+    listener.eval()
+
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for scene, targets in DataLoader(dataset, batch_size=batch_size):
+            scene, targets = scene.to(device), targets.to(device)
+            target_objs = scene[torch.arange(scene.size(0)), targets]
+            tokens = speaker(target_objs).tokens
+            preds = listener(tokens, scene).preds
+            correct += int((preds == targets).sum().item())
+            total += targets.numel()
+
+    speaker.train(was_training[0])
+    listener.train(was_training[1])
+    return correct / total if total else 0.0
+
+
+SPLITS = ["train", "iid", "compo", "compo_target", "distractor"]
 
 
 def evaluate(
@@ -20,75 +79,67 @@ def evaluate(
     split: str = "train",
     heldout_pairs: Optional[List[Tuple[str, str]]] = None,
     n_scenes: int = 1000,
-    k: int = 5,
+    k: Optional[int] = None,
     batch_size: int = 32,
+    pragmatic: bool = False,
+    num_distractors: Optional[int] = None,
 ) -> Dict[str, float]:
-    """Evaluate a trained model on a specific data split."""
+    """Evaluate a trained model on a specific data split.
+
+    Splits: ``train`` (random scenes), ``iid``/``compo`` (compositional splits),
+    ``compo_target`` (target is a held-out object) and ``distractor`` (the other
+    objects share attributes with the target). ``k``, ``heldout_pairs`` and the
+    world default to the values stored in the checkpoint.
+
+    Args:
+        pragmatic: Wrap the listener in an RSA :class:`PragmaticListener` that
+            reasons about which object the speaker would most likely describe
+            with the received message (MLP agents only).
+        num_distractors: Distractors per scene for the ``distractor`` split
+            (default ``k - 1``).
+
+    Returns:
+        ``{"acc": ...}`` plus the speaker's lexicon metrics.
+    """
     device = get_device()
 
-    # Load checkpoint
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     config = checkpoint["config"]
+    world = get_world(checkpoint.get("world", "default"))
+    if k is None:
+        k = checkpoint.get("k", 5)
+    if heldout_pairs is None:
+        heldout_pairs = checkpoint.get("heldout_pairs")
 
-    # Create agents based on checkpoint type
-    speaker: Any
-    listener: Any
-
-    if hasattr(config, "use_sequence_models") and config.use_sequence_models:
-        speaker = SpeakerSeq(config).to(device)
-        listener = ListenerSeq(config).to(device)
-    else:
-        speaker = Speaker(config).to(device)
-        listener = Listener(config).to(device)
-
-    # Load model states
+    speaker, listener = build_agents(config, device)
     speaker.load_state_dict(checkpoint["speaker_state_dict"])
     listener.load_state_dict(checkpoint["listener_state_dict"])
 
-    speaker.eval()
-    listener.eval()
+    if pragmatic:
+        if getattr(config, "use_sequence_models", False):
+            raise ValueError("pragmatic evaluation supports MLP agents only")
+        listener = PragmaticListener(config, listener, speaker)
 
-    # Create dataset based on split
     dataset: Any
     if split == "train":
-        dataset = ReferentialGameDataset(n_scenes, k, seed=7)
-    elif split in ["iid", "compo"]:
-        if heldout_pairs is None:
+        dataset = ReferentialGameDataset(n_scenes, k, seed=7, world=world)
+    elif split == "distractor":
+        n_d = k - 1 if num_distractors is None else num_distractors
+        dataset = DistractorDataset(n_scenes, k, n_d, seed=7, world=world)
+    elif split in ["iid", "compo", "compo_target"]:
+        if not heldout_pairs:
             raise ValueError("heldout_pairs must be provided for compositional splits")
-
-        from ..data.data import make_compositional_splits
-
-        splits = make_compositional_splits(n_scenes, k, heldout_pairs, seed=7)
-        dataset = splits[split]
-    else:
-        raise ValueError(f"Unsupported split: {split}")
-
-    dataloader = DataLoader(dataset, batch_size=batch_size)
-
-    total_acc = 0.0
-    n_batches = 0
-
-    with torch.no_grad():
-        for batch in dataloader:
-            scene_tensor, target_indices = batch
-            scene_tensor, target_indices = (
-                scene_tensor.to(device),
-                target_indices.to(device),
+        if split == "compo_target":
+            dataset = make_heldout_target_dataset(
+                n_scenes, k, heldout_pairs, seed=7, world=world
             )
+        else:
+            dataset = make_compositional_splits(
+                n_scenes, k, heldout_pairs, seed=7, world=world
+            )[split]
+    else:
+        raise ValueError(f"Unsupported split: {split}; choose from {SPLITS}")
 
-            batch_size = scene_tensor.size(0)
-            target_objects = scene_tensor[torch.arange(batch_size), target_indices]
-
-            # Speaker
-            speaker_output = speaker(target_objects)
-            tokens = speaker_output.tokens
-
-            # Listener
-            listener_output = listener(tokens, scene_tensor)
-            preds = listener_output.preds
-
-            acc = (preds == target_indices).float().mean()
-            total_acc += acc.item()
-            n_batches += 1
-
-    return {"acc": total_acc / n_batches if n_batches > 0 else 0.0}
+    results = {"acc": accuracy(speaker, listener, dataset, device, batch_size)}
+    results.update(language_metrics(speaker, world, device))
+    return results

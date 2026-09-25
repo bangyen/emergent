@@ -15,7 +15,10 @@ tests/
 │   ├── test_data.py         # Dataset tests
 │   ├── test_analysis.py     # Analysis function tests
 │   ├── test_pragmatics.py   # Pragmatic inference tests
-│   ├── test_multimodal.py   # Multimodal communication tests
+│   ├── test_language.py     # TopSim / PosDis / lexicon metrics
+│   ├── test_training.py     # Training loop, CLI, eval splits
+│   ├── test_population.py   # Population training and sweeps
+│   ├── test_report.py       # Sweep aggregation
 │   ├── test_sequences.py    # Sequence model tests
 │   ├── test_splits.py       # Data splitting tests
 │   └── test_basic.py        # Generic smoke tests
@@ -74,17 +77,7 @@ python -m pytest -k "test_speaker"
 
 ### Test Data and Fixtures
 
-The `conftest.py` file provides comprehensive fixtures:
-
-- **`sample_config`**: Standard communication configuration
-- **`large_config`**: Larger configuration for integration tests
-- **`sample_object`**: Sample object for testing
-- **`sample_scene_data`**: Sample scene data
-- **`sample_speaker/listener`**: Pre-configured agents
-- **`sample_dataset`**: Small dataset for testing
-- **`mock_checkpoint`**: Mock checkpoint data
-- **`sample_training_logs`**: Sample training metrics
-- **`temp_output_dir`**: Temporary output directory
+`conftest.py` provides `sample_config`, a small `CommunicationConfig` for fast tests. Tests that write files use pytest's `tmp_path`.
 
 ## 📊 Test Categories
 
@@ -196,27 +189,7 @@ omit = [
 
 ## 🚀 Continuous Integration
 
-### GitHub Actions (Future)
-
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Install dependencies
-        run: make init
-      - name: Run tests
-        run: make test-coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v1
-```
+CI runs lint, format, type checks, unit and integration tests on Python 3.10–3.12; see `.github/workflows/ci.yml`.
 
 ## 📝 Writing New Tests
 
@@ -232,7 +205,7 @@ import pytest
 import torch
 from unittest.mock import patch, Mock
 
-from src.langlab.module_name import function_name
+from langlab.module_name import function_name
 
 
 @pytest.mark.unit
@@ -256,7 +229,7 @@ class TestFunctionName:
         with pytest.raises(ValueError, match="Expected error message"):
             function_name(invalid_input, sample_config)
 
-    @patch('src.langlab.module_name.external_function')
+    @patch('langlab.module_name.external_function')
     def test_with_mock(self, mock_external, sample_config):
         """Test with mocked external dependency."""
         mock_external.return_value = expected_value
@@ -281,7 +254,7 @@ class TestWorkflowName:
         setup_data = create_setup_data()
         
         # Step 2: Execute
-        with patch('src.langlab.module.slow_function') as mock_slow:
+        with patch('langlab.module.slow_function') as mock_slow:
             mock_slow.return_value = expected_result
             
             result = execute_workflow(setup_data, sample_config)

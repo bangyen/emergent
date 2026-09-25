@@ -1,0 +1,17 @@
+{
+  "base": {
+    "n_steps": 10000,
+    "k": 5,
+    "v": 16,
+    "message_length": 2,
+    "heldout_pairs": [["red", "circle"]],
+    "eval_every": 1000
+  },
+  "variants": [
+    {"name": "MLP"},
+    {"name": "GRU", "use_sequence_models": true, "entropy_weight": 0.05},
+    {"name": "MLP, population of 3 with turnover", "runner": "population", "n_agents": 3, "lifespan": 2500},
+    {"name": "MLP, large world", "world": "large", "heldout_pairs": [["yellow", "star"]]}
+  ],
+  "seeds": [1, 2, 3]
+}

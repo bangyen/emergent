@@ -1,0 +1,69 @@
+{
+  "base": {
+    "n_steps": 10000,
+    "k": 5,
+    "v": 16,
+    "message_length": 2,
+    "heldout_pairs": [
+      [
+        "red",
+        "circle"
+      ]
+    ],
+    "eval_every": 2500
+  },
+  "variants": [
+    {
+      "name": "baseline"
+    },
+    {
+      "name": "vocab 8",
+      "v": 8
+    },
+    {
+      "name": "vocab 32",
+      "v": 32
+    },
+    {
+      "name": "message length 3",
+      "message_length": 3
+    },
+    {
+      "name": "10 objects per scene",
+      "k": 10
+    },
+    {
+      "name": "4 hard distractors",
+      "hard_distractors": 4
+    },
+    {
+      "name": "30k steps",
+      "n_steps": 30000,
+      "eval_every": 5000
+    },
+    {
+      "name": "dot listener",
+      "listener_type": "dot"
+    },
+    {
+      "name": "dot listener, 30k steps",
+      "listener_type": "dot",
+      "n_steps": 30000,
+      "eval_every": 5000
+    }
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "readme_block": "generalization",
+  "report_metrics": [
+    "iid_acc",
+    "compo_acc",
+    "compo_target_acc",
+    "topsim",
+    "posdis",
+    "n_messages"
+  ]
+}

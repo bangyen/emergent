@@ -8,7 +8,6 @@ import pytest
 import torch
 
 from langlab.core.agents import Speaker, Listener
-from langlab.core.channel import DiscreteChannel
 from langlab.core.config import CommunicationConfig
 from langlab.data.world import TOTAL_ATTRIBUTES
 
@@ -33,12 +32,6 @@ def listener(config: CommunicationConfig) -> Listener:
     return Listener(config)
 
 
-@pytest.fixture
-def channel(config: CommunicationConfig) -> DiscreteChannel:
-    """Create a DiscreteChannel for testing."""
-    return DiscreteChannel(config)
-
-
 def test_speaker_output_shapes(speaker: Speaker, config: CommunicationConfig) -> None:
     """Test that Speaker produces correct output shapes."""
     batch_size = 3
@@ -52,15 +45,15 @@ def test_speaker_output_shapes(speaker: Speaker, config: CommunicationConfig) ->
 
     # Check logits shape: (batch_size, message_length, vocabulary_size)
     expected_logits_shape = (batch_size, config.message_length, config.vocabulary_size)
-    assert (
-        output.logits.shape == expected_logits_shape
-    ), f"Expected {expected_logits_shape}, got {output.logits.shape}"
+    assert output.logits.shape == expected_logits_shape, (
+        f"Expected {expected_logits_shape}, got {output.logits.shape}"
+    )
 
     # Check tokens shape: (batch_size, message_length)
     expected_token_shape = (batch_size, config.message_length)
-    assert (
-        output.tokens.shape == expected_token_shape
-    ), f"Expected {expected_token_shape}, got {output.tokens.shape}"
+    assert output.tokens.shape == expected_token_shape, (
+        f"Expected {expected_token_shape}, got {output.tokens.shape}"
+    )
 
     # Check that tokens are integers
     assert output.tokens.dtype in [
@@ -88,81 +81,35 @@ def test_listener_output_shapes(
 
     # Check probs shape: (batch_size, num_candidates)
     expected_shape = (batch_size, num_candidates)
-    assert (
-        output.probs.shape == expected_shape
-    ), f"Expected {expected_shape}, got {output.probs.shape}"
+    assert output.probs.shape == expected_shape, (
+        f"Expected {expected_shape}, got {output.probs.shape}"
+    )
 
     # Check that probabilities sum to 1 for each batch
     prob_sums = output.probs.sum(dim=-1)
-    assert torch.allclose(
-        prob_sums, torch.ones(batch_size), atol=1e-6
-    ), f"Probabilities should sum to 1, got sums: {prob_sums}"
-
-
-def test_channel_token_range(
-    channel: DiscreteChannel, config: CommunicationConfig
-) -> None:
-    """Test that channel enforces token range [0, V-1]."""
-    batch_size = 4
-    message_length = config.message_length
-    vocab_size = config.vocabulary_size
-
-    # Create test logits
-    speaker_logits = torch.randn(batch_size, message_length, vocab_size)
-
-    # Send through channel
-    tokens = channel.send(speaker_logits)
-
-    # Check token range
-    assert tokens.min() >= 0
-    assert tokens.max() < vocab_size
-
-
-def test_channel_token_range_edge_cases(
-    channel: DiscreteChannel, config: CommunicationConfig
-) -> None:
-    """Test channel behavior with edge case logits."""
-    # Test with extreme logits
-    extreme_logits = torch.tensor(
-        [
-            [
-                [
-                    100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                ]
-            ],
-            [
-                [
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    100.0,
-                ]
-            ],
-        ]
+    assert torch.allclose(prob_sums, torch.ones(batch_size), atol=1e-6), (
+        f"Probabilities should sum to 1, got sums: {prob_sums}"
     )
 
-    tokens = channel.send(extreme_logits)
 
-    # Should select the highest logit (first and last tokens)
-    expected_tokens = torch.tensor([[0], [config.vocabulary_size - 1]])
-    assert torch.equal(
-        tokens, expected_tokens
-    ), f"Expected {expected_tokens}, got {tokens}"
+def test_sample_tokens_range_and_greedy() -> None:
+    """Sampled tokens stay in [0, V-1]; greedy mode picks the argmax."""
+    from langlab.core.agents import _sample_tokens
+
+    logits = torch.randn(4, 2, 10)
+    tokens = _sample_tokens(logits, 1.0, stochastic=True)
+    assert tokens.min() >= 0 and tokens.max() < 10
+    assert torch.equal(_sample_tokens(logits, 1.0, False), logits.argmax(-1))
+
+
+def test_sample_tokens_matches_softmax() -> None:
+    """Gumbel-max samples follow softmax(logits)."""
+    from langlab.core.agents import _sample_tokens
+
+    torch.manual_seed(0)
+    logits = torch.tensor([0.0, 1.0, 2.0]).expand(20000, 3)
+    freq = torch.bincount(_sample_tokens(logits, 1.0, True), minlength=3) / 20000
+    assert torch.allclose(freq, torch.softmax(logits[0], -1), atol=0.02)
 
 
 def test_speaker_training_mode(speaker: Speaker, config: CommunicationConfig) -> None:
@@ -221,3 +168,19 @@ def test_agent_device_compatibility(
 
     assert speaker_out.tokens.device.type == "cpu"
     assert listener_out.probs.device.type == "cpu"
+
+
+def test_dot_listener_is_additive() -> None:
+    """DotListener scores decompose over (token, attribute) terms."""
+    from langlab.core.agents import DotListener
+
+    config = CommunicationConfig(vocabulary_size=5, message_length=2, hidden_size=16)
+    listener = DotListener(config)
+    tokens = torch.tensor([[1, 3]])
+    objects = torch.eye(8)[[0, 3, 6]].sum(0).view(1, 1, 8)  # one object
+    both = torch.cat([objects, torch.eye(8)[[1, 4, 7]].sum(0).view(1, 1, 8)], 1)
+    out = listener(tokens, both)
+    assert out.probs.shape == (1, 2)
+    assert torch.allclose(out.probs.sum(-1), torch.ones(1))
+    with pytest.raises(ValueError):
+        CommunicationConfig(listener_type="attention")

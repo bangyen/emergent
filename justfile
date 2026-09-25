@@ -19,7 +19,7 @@ init:
 
 # format code
 fmt:
-    {{PYTHON}} -m black .
+    {{PYTHON}} -m ruff format .
 
 # lint code
 lint:
