@@ -5,18 +5,74 @@
     "k": 5,
     "v": 16,
     "message_length": 2,
-    "heldout_pairs": [["red", "circle"]],
+    "heldout_pairs": [
+      [
+        "red",
+        "circle"
+      ]
+    ],
     "eval_every": 2500
   },
   "variants": [
-    {"name": "3 pairs, no turnover", "n_agents": 3},
-    {"name": "3 pairs, turnover every 2500", "n_agents": 3, "lifespan": 2500},
-    {"name": "3 pairs, turnover every 1000", "n_agents": 3, "lifespan": 1000},
-    {"name": "5 pairs, turnover every 2500", "n_agents": 5, "lifespan": 2500},
-    {"name": "3 speakers, 1 shared listener", "n_agents": 3, "n_listeners": 1},
-    {"name": "1 pair chain, turnover every 2500", "n_agents": 1, "lifespan": 2500}
+    {
+      "name": "3 pairs, no turnover",
+      "n_agents": 3
+    },
+    {
+      "name": "3 pairs, turnover every 2500",
+      "n_agents": 3,
+      "lifespan": 2500
+    },
+    {
+      "name": "3 pairs, turnover every 1000",
+      "n_agents": 3,
+      "lifespan": 1000
+    },
+    {
+      "name": "5 pairs, turnover every 2500",
+      "n_agents": 5,
+      "lifespan": 2500
+    },
+    {
+      "name": "3 speakers, 1 shared listener",
+      "n_agents": 3,
+      "n_listeners": 1
+    },
+    {
+      "name": "1 pair chain, turnover every 2500",
+      "n_agents": 1,
+      "lifespan": 2500
+    },
+    {
+      "name": "3 pairs, vocab 5",
+      "n_agents": 3,
+      "v": 5
+    },
+    {
+      "name": "3 speakers, 1 shared listener, vocab 5",
+      "n_agents": 3,
+      "n_listeners": 1,
+      "v": 5
+    },
+    {
+      "name": "1 pair, vocab 5 (reference)",
+      "n_agents": 1,
+      "v": 5
+    }
   ],
-  "seeds": [1, 2, 3],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
   "readme_block": "population",
-  "report_metrics": ["iid_acc", "iid_acc_min", "compo_target_acc", "agreement", "topsim_initial", "topsim", "posdis"]
+  "report_metrics": [
+    "iid_acc",
+    "iid_acc_min",
+    "compo_target_acc",
+    "agreement",
+    "topsim_initial",
+    "topsim",
+    "posdis"
+  ]
 }

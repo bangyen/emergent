@@ -324,6 +324,46 @@ class Listener(nn.Module):
         return ListenerOutput(probs=probabilities, preds=predictions)
 
 
+class DotListener(nn.Module):
+    """Additive listener: score = <sum of token embeddings, linear object embedding>.
+
+    Each (position, token) has its own embedding and objects are embedded
+    linearly, so a candidate's score is a sum of (token, attribute value)
+    terms. A novel combination of familiar tokens and attribute values is
+    therefore scored exactly as the familiar parts suggest, which lets the
+    listener generalize compositionally when the speaker's language allows it.
+
+    Args:
+        config: Communication configuration.
+    """
+
+    position_offsets: torch.Tensor
+
+    def __init__(self, config: CommunicationConfig):
+        super().__init__()
+        self.config = config
+        self.token_embedding = nn.Embedding(
+            config.message_length * config.vocabulary_size, config.hidden_size
+        )
+        self.object_encoder = nn.Linear(
+            config.object_dim, config.hidden_size, bias=False
+        )
+        self.register_buffer(
+            "position_offsets",
+            torch.arange(config.message_length) * config.vocabulary_size,
+            persistent=False,
+        )
+
+    def forward(
+        self, tokens: torch.Tensor, candidate_objects: torch.Tensor
+    ) -> ListenerOutput:
+        message = self.token_embedding(tokens + self.position_offsets).sum(dim=1)
+        candidates = self.object_encoder(candidate_objects)  # (B, N, H)
+        scores = torch.einsum("bh,bnh->bn", message, candidates)
+        probabilities = F.softmax(scores, dim=-1)
+        return ListenerOutput(probs=probabilities, preds=probabilities.argmax(dim=1))
+
+
 class PragmaticListener(nn.Module):
     """Pragmatic Listener agent that uses RSA-style reasoning for distractor scenes.
 

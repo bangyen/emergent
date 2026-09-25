@@ -79,6 +79,7 @@ def train_population(
     log_every: int = 100,
     world: str = "default",
     hard_distractors: int = 0,
+    listener_type: str = "mlp",
 ) -> Dict[str, float]:
     """Train a population of agents in random pairings.
 
@@ -115,6 +116,7 @@ def train_population(
         hidden_size=hidden_size,
         object_dim=world_def.dim,
         use_sequence_models=use_sequence_models,
+        listener_type=listener_type,
         seed=seed,
     )
 
@@ -155,14 +157,12 @@ def train_population(
             if name == "iid":
                 results["iid_acc_min"] = min(accs)
         lexicons = [lexicon(s.model, world_def, device) for s in speakers]
-        results["agreement"] = mean(
-            [
+        if len(lexicons) > 1:
+            results["agreement"] = mean(
                 mean(float(a == b) for a, b in zip(lexicons[i], lexicons[j]))
                 for i in range(len(lexicons))
                 for j in range(i + 1, len(lexicons))
-            ]
-            or [1.0]
-        )
+            )
         per_speaker = [language_metrics(s.model, world_def, device) for s in speakers]
         for field in LANGUAGE_FIELDS:
             results[field] = mean(m[field] for m in per_speaker)
