@@ -24,9 +24,6 @@ def sample_config() -> CommunicationConfig:
         vocabulary_size=10,
         message_length=1,
         hidden_size=32,  # Smaller for faster tests
-        multimodal=False,
-        distractors=0,
-        pragmatic=False,
         seed=42,
     )
 
@@ -38,9 +35,6 @@ def large_config() -> CommunicationConfig:
         vocabulary_size=20,
         message_length=2,
         hidden_size=64,
-        multimodal=True,
-        distractors=2,
-        pragmatic=True,
         seed=123,
     )
 

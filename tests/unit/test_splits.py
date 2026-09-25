@@ -39,9 +39,9 @@ class TestCompositionalSplits:
                 )
 
                 # Training set should not contain blue triangle objects
-                assert not (
-                    is_blue and is_triangle
-                ), f"Found blue triangle in training scene {i}, object {obj_idx}"
+                assert not (is_blue and is_triangle), (
+                    f"Found blue triangle in training scene {i}, object {obj_idx}"
+                )
 
     def test_compositional_split_sizes(self) -> None:
         """Test that splits have reasonable sizes."""
@@ -62,9 +62,9 @@ class TestCompositionalSplits:
 
         # Total should be approximately n_scenes
         total_size = train_size + iid_size + compo_size
-        assert (
-            total_size <= n_scenes
-        ), f"Total size {total_size} exceeds requested {n_scenes}"
+        assert total_size <= n_scenes, (
+            f"Total size {total_size} exceeds requested {n_scenes}"
+        )
 
     def test_compositional_split_reproducibility(self) -> None:
         """Test that splits are reproducible with same seed."""
@@ -87,9 +87,9 @@ class TestCompositionalSplits:
                 scene1, target1 = dataset1[i]
                 scene2, target2 = dataset2[i]
 
-                assert torch.equal(
-                    scene1, scene2
-                ), f"Split {split_name} scene {i} differs"
+                assert torch.equal(scene1, scene2), (
+                    f"Split {split_name} scene {i} differs"
+                )
                 assert target1 == target2, f"Split {split_name} target {i} differs"
 
     def test_compositional_split_different_seeds(self) -> None:

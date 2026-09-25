@@ -2,13 +2,11 @@
 
 This module implements a discrete communication channel that handles message
 transmission between Speaker and Listener agents, ensuring proper token
-constraints and supporting differentiable training. Supports multimodal
-communication with parallel gesture streams.
+constraints and supporting differentiable training.
 """
 
 import torch
 import torch.nn.functional as F
-from typing import Tuple
 
 from .config import CommunicationConfig
 
@@ -18,11 +16,10 @@ class DiscreteChannel:
 
     The DiscreteChannel handles the transmission of messages between agents,
     enforcing token range constraints and supporting straight-through gradients
-    during training for differentiable discrete communication. Supports both
-    unimodal (tokens only) and multimodal (tokens + gestures) communication.
+    during training for differentiable discrete communication.
 
     Args:
-        config: Communication configuration containing vocabulary and multimodal parameters.
+        config: Communication configuration containing vocabulary parameters.
     """
 
     def __init__(self, config: CommunicationConfig):
@@ -72,35 +69,6 @@ class DiscreteChannel:
             token_ids = torch.argmax(scaled_logits, dim=-1)
 
         return token_ids
-
-    def send_multimodal(
-        self,
-        speaker_logits: torch.Tensor,
-        gesture_logits: torch.Tensor,
-        temperature: float = 1.0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Transmit multimodal message through the discrete channel.
-
-        Args:
-            speaker_logits: Tensor of shape (batch_size, message_length, vocabulary_size).
-            gesture_logits: Tensor of shape (batch_size, message_length, gesture_size).
-            temperature: Temperature for sampling (default: 1.0).
-
-        Returns:
-            A tuple of (tokens, gestures).
-        """
-        tokens = self.send(speaker_logits, temperature)
-
-        # Sample gestures using similar logic
-        if gesture_logits.requires_grad:
-            gesture_probs = F.gumbel_softmax(
-                gesture_logits / temperature, tau=1.0, hard=True, dim=-1
-            )
-            gestures = torch.argmax(gesture_probs, dim=-1)
-        else:
-            gestures = torch.argmax(gesture_logits / temperature, dim=-1)
-
-        return tokens, gestures
 
     def compute_message_cost(self, token_ids: torch.Tensor) -> torch.Tensor:
         """Compute the total cost of a message based on token-specific costs.

@@ -1,13 +1,13 @@
 # Language Emergence Lab
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bangyen/emergent/blob/main/emergent_demo.ipynb)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
+[![CI](https://github.com/bangyen/emergent/actions/workflows/ci.yml/badge.svg)](https://github.com/bangyen/emergent/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/bangyen/emergent)](LICENSE)
 
 **Multi-agent emergent language learning: Modular framework for studying communication protocols in fully reproducible referential games**
 
 <p align="center">
-  <!-- Note: Placeholder for future training progress visualization -->
+  <img src="docs/training_curve.png" alt="Training curve: iid accuracy reaches 100%, compositional accuracy ~90%" width="640">
 </p>
 
 ## Quickstart
@@ -17,26 +17,31 @@ Clone the repo and run the demo:
 ```bash
 git clone https://github.com/bangyen/emergent.git
 cd emergent
-pip install -e .
-pytest   # optional: run tests
-langlab train --steps 1000 --k 5 --v 6
+pip install -e ".[analysis]"   # or: uv sync --extra dev
+langlab train --steps 10000 --heldout red,circle   # writes outputs/metrics.csv + checkpoint
+langlab eval --ckpt outputs/checkpoints/final_model.pt --split compo
+langlab plot                                        # outputs/training_curve.png
 ```
 
 Or open in Colab: [Colab Notebook](https://colab.research.google.com/github/bangyen/emergent/blob/main/emergent_demo.ipynb).
 
 ## Results
 
-| Metric | Value |
-|--------|-------|
-| Referential Accuracy | ~40-50% (Baseline) |
-| Compositional Generalization | Supported |
+Defaults (`k=5` objects per scene, vocabulary 16, message length 2, 10k steps), holding out every red circle from training. Chance is 20%.
+
+| Split | Accuracy (seeds 1, 2, 3, 7) |
+|-------|------------------------------|
+| IID (fresh scenes without held-out objects) | 97–100% |
+| Compositional (scenes containing a held-out object) | 82–95% |
+
+Reproduce with `langlab train --steps 10000 --heldout red,circle --seed <s>`.
 
 ## Features
 
-- **Multi-Agent Communication** — Speaker-listener neural agents with discrete message generation using Gumbel-Softmax for differentiable training.
-- **Flexible Architectures** — Support for MLP and sequence-based (RNN) agents with residual connections and layer normalization.
-- **Comprehensive Analysis** — Tools for evaluation on IID and compositional splits, and research report generation.
-- **Reproducible Research** — Seeded experiments and automated test validation.
+- **Multi-Agent Communication** — Speaker and Listener agents exchange discrete messages; the Speaker is trained with REINFORCE (Gumbel-max sampling, moving-average baseline, entropy bonus), the Listener with cross-entropy.
+- **Flexible Architectures** — MLP agents with residual connections and layer normalization, or GRU sequence agents (`--use-sequence-models`).
+- **Compositional Generalization** — `--heldout` removes attribute combinations from the training stream; training periodically evaluates on fixed IID and compositional sets.
+- **Reproducible Research** — Seeded scene streams and training, metrics logged to CSV.
 
 ## Repo Structure
 
@@ -45,9 +50,9 @@ emergent/
 ├── emergent_demo.ipynb  # Colab notebook demo
 ├── src/langlab/         # Core implementation
 │   ├── core/            # Agent architectures and channel logic
-│   ├── training/        # Training loops and grounding protocols
+│   ├── training/        # Training loop
 │   ├── data/            # World generation and datasets
-│   ├── analysis/        # Evaluation and report generation
+│   ├── analysis/        # Evaluation, plotting and reports (plotting needs the `analysis` extra)
 │   ├── apps/            # CLI interface
 │   └── utils/           # Shared utilities
 ├── tests/               # Unit and integration tests
@@ -57,9 +62,8 @@ emergent/
 
 ## Validation
 
-- ✅ Overall test coverage of ~70% (`pytest`)
-- ✅ Reproducible seeds for experiments
-- ✅ Core CLI functionality verified
+- CI runs ruff, mypy and the test suite on Python 3.10–3.12, then a CLI smoke run (train → eval → plot)
+- Test coverage above 80% (`pytest --cov=src`)
 
 ## References
 

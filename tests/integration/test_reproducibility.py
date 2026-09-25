@@ -82,14 +82,14 @@ def test_deterministic_sampling_with_seed(
     # All results should be identical
     for i in range(1, len(results)):
         # Check logits are identical
-        assert torch.allclose(
-            results[0]["logits"], results[i]["logits"]
-        ), f"Logits differ between runs {0} and {i}"
+        assert torch.allclose(results[0]["logits"], results[i]["logits"]), (
+            f"Logits differ between runs {0} and {i}"
+        )
 
         # Check tokens are identical
-        assert torch.equal(
-            results[0]["tokens"], results[i]["tokens"]
-        ), f"Tokens differ between runs {0} and {i}"
+        assert torch.equal(results[0]["tokens"], results[i]["tokens"]), (
+            f"Tokens differ between runs {0} and {i}"
+        )
 
         # Check channel tokens are identical
         assert torch.equal(
@@ -136,12 +136,12 @@ def test_deterministic_with_different_seeds() -> None:
             run_results.append({"logits": logits.clone(), "tokens": tokens.clone()})
 
         # Results within same seed should be identical
-        assert torch.allclose(
-            run_results[0]["logits"], run_results[1]["logits"]
-        ), f"Results differ within seed {seed}"
-        assert torch.equal(
-            run_results[0]["tokens"], run_results[1]["tokens"]
-        ), f"Tokens differ within seed {seed}"
+        assert torch.allclose(run_results[0]["logits"], run_results[1]["logits"]), (
+            f"Results differ within seed {seed}"
+        )
+        assert torch.equal(run_results[0]["tokens"], run_results[1]["tokens"]), (
+            f"Tokens differ within seed {seed}"
+        )
 
         # Store results for cross-seed comparison
         results_by_seed[seed] = run_results[0]
@@ -151,9 +151,9 @@ def test_deterministic_with_different_seeds() -> None:
     seed2_results = results_by_seed[seeds[1]]
 
     # Logits should be different (due to different random initialization)
-    assert not torch.allclose(
-        seed1_results["logits"], seed2_results["logits"]
-    ), "Results should differ between different seeds"
+    assert not torch.allclose(seed1_results["logits"], seed2_results["logits"]), (
+        "Results should differ between different seeds"
+    )
 
     # Tokens might be the same or different depending on the specific values
     # This is acceptable as long as they're deterministic within each seed
@@ -176,9 +176,9 @@ def test_reproducible_agent_initialization() -> None:
 
     # Agents should have identical parameters
     for param1, param2 in zip(speaker1.parameters(), speaker2.parameters()):
-        assert torch.allclose(
-            param1, param2
-        ), "Agent parameters should be identical with same seed"
+        assert torch.allclose(param1, param2), (
+            "Agent parameters should be identical with same seed"
+        )
 
     # Test forward pass with same input
     batch_size = 2
@@ -223,15 +223,15 @@ def test_channel_deterministic_behavior(
 
     # All results should be identical (argmax is deterministic)
     for i in range(1, len(results)):
-        assert torch.equal(
-            results[0], results[i]
-        ), f"Channel output differs between runs {0} and {i}"
+        assert torch.equal(results[0], results[i]), (
+            f"Channel output differs between runs {0} and {i}"
+        )
 
     # Verify the expected tokens (argmax of each row)
     expected_tokens = torch.tensor([[1], [9], [0]])  # argmax of each logit row
-    assert torch.equal(
-        results[0], expected_tokens
-    ), f"Expected {expected_tokens}, got {results[0]}"
+    assert torch.equal(results[0], expected_tokens), (
+        f"Expected {expected_tokens}, got {results[0]}"
+    )
 
 
 def test_training_mode_stochastic_behavior(

@@ -4,9 +4,11 @@ This module provides dataset classes for generating and managing data for
 referential game experiments, enabling systematic study of proto-language emergence.
 """
 
-from typing import Tuple, Iterator, Optional, List, Dict
+import random
+from typing import Tuple, Iterator, Optional, List, Dict, Sequence, Set
+
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 
 from .world import (
     sample_scene,
@@ -90,6 +92,65 @@ class ReferentialGameDataset(Dataset):
         """Iterate over all scenes in the dataset."""
         for i in range(len(self)):
             yield self[i]
+
+
+ObjectKey = Tuple[str, ...]
+
+
+def object_key(obj: Dict[str, str]) -> ObjectKey:
+    """Order-independent hashable key for an object."""
+    return tuple(sorted(obj.values()))
+
+
+def heldout_objects(heldout_pairs: Sequence[Tuple[str, str]]) -> Set[ObjectKey]:
+    """Return keys of every object carrying both attributes of any held-out pair."""
+    known = set(COLORS) | set(SHAPES) | set(SIZES)
+    for pair in heldout_pairs:
+        unknown = [attr for attr in pair if attr not in known]
+        if unknown:
+            raise ValueError(
+                f"Unknown attribute(s) {unknown}; expected one of {sorted(known)}"
+            )
+    keys = set()
+    for color in COLORS:
+        for shape in SHAPES:
+            for size in SIZES:
+                values = {color, shape, size}
+                if any(a in values and b in values for a, b in heldout_pairs):
+                    keys.add(tuple(sorted(values)))
+    return keys
+
+
+class SceneStream(IterableDataset):
+    """Endless stream of freshly sampled scenes, generated on the fly.
+
+    Uses a private RNG so iterating does not disturb global random state, and
+    skips any scene containing a held-out object so those combinations are
+    never seen in training.
+
+    Args:
+        k: Number of objects per scene.
+        seed: Seed for the stream's private RNG.
+        heldout_pairs: Attribute pairs whose objects must never appear.
+    """
+
+    def __init__(
+        self,
+        k: int,
+        seed: Optional[int] = None,
+        heldout_pairs: Optional[Sequence[Tuple[str, str]]] = None,
+    ):
+        self.k = k
+        self.seed = seed
+        self.excluded = heldout_objects(heldout_pairs or [])
+
+    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
+        rng = random.Random(self.seed)
+        while True:
+            scene_objects, target_idx = sample_scene(self.k, rng=rng)
+            if any(object_key(obj) in self.excluded for obj in scene_objects):
+                continue
+            yield torch.stack([encode_object(o) for o in scene_objects]), target_idx
 
 
 class DistractorDataset(Dataset):
@@ -198,20 +259,7 @@ def make_compositional_splits(
     if seed is not None:
         set_seed(seed)
 
-    # Generate all possible objects
-    all_objects = []
-    for color in COLORS:
-        for shape in SHAPES:
-            for size in SIZES:
-                all_objects.append({"color": color, "shape": shape, "size": size})
-
-    # Create held-out object set
-    heldout_objects = set()
-    for attr1, attr2 in heldout_pairs:
-        # Find objects that contain both attributes
-        for obj in all_objects:
-            if attr1 in obj.values() and attr2 in obj.values():
-                heldout_objects.add(tuple(sorted(obj.values())))
+    excluded = heldout_objects(heldout_pairs)
 
     # Generate scenes for each split
     train_scenes: List[List[Dict[str, str]]] = []
@@ -241,13 +289,7 @@ def make_compositional_splits(
             k, seed + scene_count if seed is not None else None
         )
 
-        # Check if scene contains held-out combinations
-        scene_combinations = set()
-        for obj in scene_objects:
-            obj_tuple = tuple(sorted(obj.values()))
-            scene_combinations.add(obj_tuple)
-
-        has_heldout = bool(scene_combinations.intersection(heldout_objects))
+        has_heldout = any(object_key(obj) in excluded for obj in scene_objects)
 
         # Assign to appropriate split
         if has_heldout and len(compo_scenes) < compo_size:
