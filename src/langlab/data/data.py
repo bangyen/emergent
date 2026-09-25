@@ -140,6 +140,9 @@ class SceneStream(IterableDataset):
         seed: Seed for the stream's private RNG.
         heldout_pairs: Attribute pairs whose objects must never appear.
         world: World to draw objects from.
+        hard_distractors: How many of the k - 1 distractors must share at least
+            one attribute with the target (0 = uniformly random scenes). Hard
+            distractors force the speaker to describe more than one attribute.
     """
 
     def __init__(
@@ -148,10 +151,14 @@ class SceneStream(IterableDataset):
         seed: Optional[int] = None,
         heldout_pairs: Optional[Sequence[Tuple[str, str]]] = None,
         world: World = DEFAULT_WORLD,
+        hard_distractors: int = 0,
     ):
+        if not 0 <= hard_distractors < k:
+            raise ValueError("hard_distractors must be in [0, k)")
         self.k = k
         self.seed = seed
         self.world = world
+        self.hard_distractors = hard_distractors
         self.excluded = world.heldout_keys(heldout_pairs or [])
         if world.n_objects - len(self.excluded) < k:
             raise ValueError("Too many held-out objects to fill a scene")
@@ -163,10 +170,30 @@ class SceneStream(IterableDataset):
         rng = random.Random(self.seed)
         objects = self._allowed_objects
         encodings = [self.world.encode(o) for o in objects]
+        if not self.hard_distractors:
+            while True:
+                idx = rng.sample(range(len(objects)), self.k)
+                target = rng.randint(0, self.k - 1)
+                yield torch.stack([encodings[i] for i in idx]), target
+
+        names = self.world.names
+        similar = [
+            [
+                j
+                for j, other in enumerate(objects)
+                if j != i and any(other[n] == obj[n] for n in names)
+            ]
+            for i, obj in enumerate(objects)
+        ]
         while True:
-            idx = rng.sample(range(len(objects)), self.k)
+            t = rng.randrange(len(objects))
+            hard = rng.sample(similar[t], min(self.hard_distractors, len(similar[t])))
+            rest = [j for j in range(len(objects)) if j != t and j not in hard]
+            others = hard + rng.sample(rest, self.k - 1 - len(hard))
+            rng.shuffle(others)
             target = rng.randint(0, self.k - 1)
-            yield torch.stack([encodings[i] for i in idx]), target
+            others.insert(target, t)
+            yield torch.stack([encodings[i] for i in others]), target
 
 
 def make_compositional_splits(

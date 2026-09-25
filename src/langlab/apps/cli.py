@@ -85,6 +85,11 @@ def training_options(f: Callable[..., Any]) -> Callable[..., Any]:
             default="default",
             help="Attribute space: default (18 objects) or large (225 objects)",
         ),
+        click.option(
+            "--hard-distractors",
+            default=0,
+            help="Distractors per training scene that share an attribute with the target",
+        ),
         click.option("--eval-every", default=500, help="Evaluate every N steps"),
     ]
     for option in reversed(options):
@@ -115,6 +120,13 @@ def train(heldout: Optional[str], **kwargs: Any) -> None:
     "--lifespan",
     default=0,
     help="Replace the oldest agent every N steps (0 = no turnover)",
+)
+@click.option(
+    "--listeners",
+    "n_listeners",
+    type=int,
+    default=None,
+    help="Number of listeners (default: same as --agents)",
 )
 @click.option("--out-dir", default="outputs/population", help="Output directory")
 def pop_train(heldout: Optional[str], **kwargs: Any) -> None:

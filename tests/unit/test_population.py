@@ -112,3 +112,32 @@ def test_cli_pop_train_sweep_report(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     result = runner.invoke(main, ["report", str(out)])
     assert result.exit_code == 0 and "| x | 1 |" in result.output
+
+
+def test_shared_listener_population(tmp_path: Path) -> None:
+    metrics = train_population(
+        n_steps=6,
+        k=3,
+        v=8,
+        message_length=2,
+        n_agents=3,
+        n_listeners=1,
+        lifespan=2,
+        batch_size=4,
+        hidden_size=16,
+        out_dir=str(tmp_path),
+        eval_every=2,
+        n_eval=20,
+    )
+    assert "topsim_initial" in metrics and "agreement" in metrics
+    with open(tmp_path / "metrics.csv") as f:
+        rows = list(csv.DictReader(f))
+    # evaluation at a replacement step measures the generation that just ended
+    assert [(r["step"], r["generation"]) for r in rows] == [
+        ("2", "0"),
+        ("4", "1"),
+        ("6", "2"),
+    ]
+    ckpt = torch.load(tmp_path / "population.pt", weights_only=False)
+    assert len(ckpt["speaker_state_dicts"]) == 3
+    assert len(ckpt["listener_state_dicts"]) == 1
