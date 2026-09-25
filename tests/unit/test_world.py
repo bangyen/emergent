@@ -142,3 +142,37 @@ class TestEncodeObject:
         encoding2 = encode_object(obj2)
 
         assert torch.equal(encoding1, encoding2)
+
+
+class TestWorld:
+    """Tests for configurable attribute spaces."""
+
+    def test_default_world_matches_constants(self) -> None:
+        from langlab.data.world import DEFAULT_WORLD
+
+        assert DEFAULT_WORLD.n_objects == 18
+        assert DEFAULT_WORLD.dim == TOTAL_ATTRIBUTES
+
+    def test_large_world(self) -> None:
+        from langlab.data.world import get_world
+
+        world = get_world("large")
+        assert world.n_objects == 225 and world.dim == 16
+        scene, target = sample_scene(10, seed=1, world=world)
+        enc = torch.stack([encode_object(o, world) for o in scene])
+        assert enc.shape == (10, 16)
+        assert torch.all(enc.sum(dim=1) == 4)
+        with pytest.raises(ValueError):
+            get_world("huge")
+
+    def test_world_validation(self) -> None:
+        from langlab.data.world import World
+
+        with pytest.raises(ValueError):
+            World({"a": ["x", "y"], "b": ["x", "z"]})
+        with pytest.raises(ValueError):
+            World({"a": []})
+        world = World({"a": ["x", "y"], "b": ["z"]})
+        with pytest.raises(ValueError):
+            world.encode({"a": "q", "b": "z"})
+        assert world.heldout_keys([("x", "z")]) == {("x", "z")}

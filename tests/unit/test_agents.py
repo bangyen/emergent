@@ -8,7 +8,6 @@ import pytest
 import torch
 
 from langlab.core.agents import Speaker, Listener
-from langlab.core.channel import DiscreteChannel
 from langlab.core.config import CommunicationConfig
 from langlab.data.world import TOTAL_ATTRIBUTES
 
@@ -31,12 +30,6 @@ def speaker(config: CommunicationConfig) -> Speaker:
 def listener(config: CommunicationConfig) -> Listener:
     """Create a Listener agent for testing."""
     return Listener(config)
-
-
-@pytest.fixture
-def channel(config: CommunicationConfig) -> DiscreteChannel:
-    """Create a DiscreteChannel for testing."""
-    return DiscreteChannel(config)
 
 
 def test_speaker_output_shapes(speaker: Speaker, config: CommunicationConfig) -> None:
@@ -99,70 +92,24 @@ def test_listener_output_shapes(
     )
 
 
-def test_channel_token_range(
-    channel: DiscreteChannel, config: CommunicationConfig
-) -> None:
-    """Test that channel enforces token range [0, V-1]."""
-    batch_size = 4
-    message_length = config.message_length
-    vocab_size = config.vocabulary_size
+def test_sample_tokens_range_and_greedy() -> None:
+    """Sampled tokens stay in [0, V-1]; greedy mode picks the argmax."""
+    from langlab.core.agents import _sample_tokens
 
-    # Create test logits
-    speaker_logits = torch.randn(batch_size, message_length, vocab_size)
-
-    # Send through channel
-    tokens = channel.send(speaker_logits)
-
-    # Check token range
-    assert tokens.min() >= 0
-    assert tokens.max() < vocab_size
+    logits = torch.randn(4, 2, 10)
+    tokens = _sample_tokens(logits, 1.0, stochastic=True)
+    assert tokens.min() >= 0 and tokens.max() < 10
+    assert torch.equal(_sample_tokens(logits, 1.0, False), logits.argmax(-1))
 
 
-def test_channel_token_range_edge_cases(
-    channel: DiscreteChannel, config: CommunicationConfig
-) -> None:
-    """Test channel behavior with edge case logits."""
-    # Test with extreme logits
-    extreme_logits = torch.tensor(
-        [
-            [
-                [
-                    100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                ]
-            ],
-            [
-                [
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    -100.0,
-                    100.0,
-                ]
-            ],
-        ]
-    )
+def test_sample_tokens_matches_softmax() -> None:
+    """Gumbel-max samples follow softmax(logits)."""
+    from langlab.core.agents import _sample_tokens
 
-    tokens = channel.send(extreme_logits)
-
-    # Should select the highest logit (first and last tokens)
-    expected_tokens = torch.tensor([[0], [config.vocabulary_size - 1]])
-    assert torch.equal(tokens, expected_tokens), (
-        f"Expected {expected_tokens}, got {tokens}"
-    )
+    torch.manual_seed(0)
+    logits = torch.tensor([0.0, 1.0, 2.0]).expand(20000, 3)
+    freq = torch.bincount(_sample_tokens(logits, 1.0, True), minlength=3) / 20000
+    assert torch.allclose(freq, torch.softmax(logits[0], -1), atol=0.02)
 
 
 def test_speaker_training_mode(speaker: Speaker, config: CommunicationConfig) -> None:

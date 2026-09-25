@@ -1,102 +1,67 @@
-import json
-import os
-import shutil
-import tempfile
-from typing import Generator
+"""Tests for sweep result aggregation."""
 
-import pandas as pd
+import json
+from pathlib import Path
+
 import pytest
+
 from langlab.analysis.report import (
-    aggregate_results,
+    README_END,
+    README_START,
+    aggregate,
     create_report,
-    generate_summary_report,
+    to_markdown,
+    update_readme,
 )
 
 
-@pytest.fixture
-def experiment_data() -> Generator[str, None, None]:
-    temp_dir = tempfile.mkdtemp()
-
-    # Create dummy experiment results
-    exp1_dir = os.path.join(temp_dir, "exp1")
-    os.makedirs(exp1_dir)
-
-    metrics = {
-        "experiment_id": "exp1",
-        "params": {"V": 10, "channel_noise": 0.1, "length_cost": 0.01},
-        "metrics": {"train": {"acc": 0.8}, "compo": {"acc": 0.5}},
-        "zipf_slope": -1.2,
-    }
-
-    with open(os.path.join(exp1_dir, "metrics.json"), "w") as f:
-        json.dump(metrics, f)
-
-    exp2_dir = os.path.join(temp_dir, "exp2")
-    os.makedirs(exp2_dir)
-
-    metrics2 = {
-        "experiment_id": "exp2",
-        "params": {"V": 20, "channel_noise": 0.0, "length_cost": 0.0},
-        "metrics": {"train": {"acc": 0.9}, "compo": {"acc": 0.6}},
-        "zipf_slope": -1.1,
-    }
-
-    with open(os.path.join(exp2_dir, "metrics.json"), "w") as f:
-        json.dump(metrics2, f)
-
-    yield temp_dir
-
-    shutil.rmtree(temp_dir)
-
-
-def test_aggregate_results(experiment_data: str) -> None:
-    pattern = os.path.join(experiment_data, "**/metrics.json")
-    df = aggregate_results(pattern)
-
-    assert isinstance(df, pd.DataFrame)
-    assert len(df) == 2
-    assert "V" in df.columns
-    assert "acc" in df.columns
-    assert "zipf_slope" in df.columns
-
-
-def test_generate_summary_report() -> None:
-    df = pd.DataFrame(
-        [
-            {
-                "V": 10,
-                "channel_noise": 0.1,
-                "length_cost": 0.01,
-                "acc": 0.8,
-                "compo_acc": 0.5,
-                "zipf_slope": -1.2,
-                "experiment_id": "1",
-            },
-            {
-                "V": 20,
-                "channel_noise": 0.0,
-                "length_cost": 0.0,
-                "acc": 0.9,
-                "compo_acc": 0.6,
-                "zipf_slope": -1.1,
-                "experiment_id": "2",
-            },
-        ]
+def _write(root: Path, run: str, seed: int, metrics: dict) -> None:
+    d = root / run / f"seed{seed}"
+    d.mkdir(parents=True)
+    (d / "results.json").write_text(
+        json.dumps({"run": run, "seed": seed, "params": {}, "metrics": metrics})
     )
 
-    summary = generate_summary_report(df)
-    assert summary["total_experiments"] == 2
-    assert summary["performance_stats"]["accuracy"]["mean"] == pytest.approx(0.85)
-    assert "best_performing" in summary
+
+def test_aggregate_mean_std() -> None:
+    rows = aggregate(
+        [
+            {"run": "a", "seed": 1, "metrics": {"iid_acc": 0.8, "topsim": 0.5}},
+            {"run": "a", "seed": 2, "metrics": {"iid_acc": 1.0, "topsim": 0.7}},
+            {"run": "b", "seed": 1, "metrics": {"iid_acc": 0.5}},
+        ]
+    )
+    assert [r["run"] for r in rows] == ["a", "b"]
+    assert rows[0]["n_seeds"] == 2
+    assert rows[0]["iid_acc_mean"] == pytest.approx(0.9)
+    assert rows[0]["topsim_std"] == pytest.approx(0.1414, abs=1e-3)
+    assert rows[1]["iid_acc_std"] == 0.0
+
+    md = to_markdown(rows)
+    assert "| a | 2 | 90.0 ± 14.1% | 0.60 ± 0.14 |" in md
+    assert "| b | 1 | 50.0 ± 0.0% | – |" in md
 
 
-def test_create_report(experiment_data: str) -> None:
-    output_dir = os.path.join(experiment_data, "summary")
-    pattern = os.path.join(experiment_data, "**/metrics.json")
+def test_create_report_and_readme(tmp_path: Path) -> None:
+    _write(tmp_path, "mlp", 1, {"iid_acc": 1.0})
+    _write(tmp_path, "mlp", 2, {"iid_acc": 0.5})
+    readme = tmp_path / "README.md"
+    readme.write_text(f"intro\n{README_START}\nold\n{README_END}\noutro\n")
 
-    report_info = create_report(pattern, output_dir=output_dir, create_charts=False)
+    md = create_report(str(tmp_path), readme=str(readme))
+    assert "75.0" in md
+    assert (tmp_path / "summary.csv").exists()
+    text = readme.read_text()
+    assert "old" not in text and md in text and text.endswith("outro\n")
 
-    assert "csv_path" in report_info
-    assert "summary_path" in report_info
-    assert os.path.exists(report_info["csv_path"])
-    assert os.path.exists(report_info["summary_path"])
+
+def test_update_readme_requires_markers(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("no markers")
+    with pytest.raises(ValueError):
+        update_readme(str(readme), "table")
+
+
+def test_create_report_empty(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        create_report(str(tmp_path))

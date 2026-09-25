@@ -8,7 +8,6 @@ import pytest
 import torch
 
 from langlab.core.agents import Speaker, Listener
-from langlab.core.channel import DiscreteChannel
 from langlab.core.config import CommunicationConfig
 from langlab.utils.utils import set_seed
 from langlab.data.world import TOTAL_ATTRIBUTES
@@ -33,7 +32,6 @@ def test_deterministic_sampling_with_seed(
     # Create agents
     speaker = Speaker(deterministic_config)
     listener = Listener(deterministic_config)
-    channel = DiscreteChannel(deterministic_config)
 
     # Set to evaluation mode to disable Gumbel noise
     speaker.eval()
@@ -63,9 +61,6 @@ def test_deterministic_sampling_with_seed(
         speaker_output = speaker(object_encoding)
         logits, tokens = speaker_output.logits, speaker_output.tokens
 
-        # Channel forward pass
-        channel_tokens = channel.send(logits)
-
         # Listener forward pass
         listener_output = listener(message_tokens, candidate_objects)
         probabilities = listener_output.probs
@@ -74,7 +69,6 @@ def test_deterministic_sampling_with_seed(
             {
                 "logits": logits.clone(),
                 "tokens": tokens.clone(),
-                "channel_tokens": channel_tokens.clone(),
                 "probabilities": probabilities.clone(),
             }
         )
@@ -90,11 +84,6 @@ def test_deterministic_sampling_with_seed(
         assert torch.equal(results[0]["tokens"], results[i]["tokens"]), (
             f"Tokens differ between runs {0} and {i}"
         )
-
-        # Check channel tokens are identical
-        assert torch.equal(
-            results[0]["channel_tokens"], results[i]["channel_tokens"]
-        ), f"Channel tokens differ between runs {0} and {i}"
 
         # Check probabilities are identical
         assert torch.allclose(
@@ -200,40 +189,6 @@ def test_reproducible_agent_initialization() -> None:
     assert torch.equal(tokens1, tokens2), "Token outputs should be identical"
 
 
-def test_channel_deterministic_behavior(
-    deterministic_config: CommunicationConfig,
-) -> None:
-    """Test that channel produces deterministic outputs with fixed inputs."""
-    channel = DiscreteChannel(deterministic_config)
-
-    # Use fixed logits (not random)
-    speaker_logits = torch.tensor(
-        [
-            [[1.0, 2.0, 0.5, 0.1, 0.3, 0.2, 0.4, 0.6, 0.8, 0.9]],
-            [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]],
-            [[0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0]],
-        ]
-    )
-
-    # Run multiple times
-    results = []
-    for _ in range(5):
-        token_ids = channel.send(speaker_logits)
-        results.append(token_ids.clone())
-
-    # All results should be identical (argmax is deterministic)
-    for i in range(1, len(results)):
-        assert torch.equal(results[0], results[i]), (
-            f"Channel output differs between runs {0} and {i}"
-        )
-
-    # Verify the expected tokens (argmax of each row)
-    expected_tokens = torch.tensor([[1], [9], [0]])  # argmax of each logit row
-    assert torch.equal(results[0], expected_tokens), (
-        f"Expected {expected_tokens}, got {results[0]}"
-    )
-
-
 def test_training_mode_stochastic_behavior(
     deterministic_config: CommunicationConfig,
 ) -> None:
@@ -242,7 +197,6 @@ def test_training_mode_stochastic_behavior(
         set_seed(deterministic_config.seed)
 
     speaker = Speaker(deterministic_config)
-    channel = DiscreteChannel(deterministic_config)
 
     batch_size = 2
     input_dim = TOTAL_ATTRIBUTES
@@ -257,7 +211,6 @@ def test_training_mode_stochastic_behavior(
         speaker_output_train.logits,
         speaker_output_train.tokens,
     )
-    channel.send(logits_train)
 
     # Evaluation mode (deterministic)
     speaker.eval()
@@ -265,7 +218,6 @@ def test_training_mode_stochastic_behavior(
         set_seed(deterministic_config.seed)
     speaker_output_eval = speaker(object_encoding)
     logits_eval, _tokens_eval = speaker_output_eval.logits, speaker_output_eval.tokens
-    channel.send(logits_eval)
 
     # Both logits should have reasonable shapes and values
     assert logits_train.shape == logits_eval.shape, "Logits should have same shape"

@@ -70,7 +70,7 @@ def test_train_with_heldout_writes_metrics(tmp_path: Path) -> None:
         n_eval=20,
         log_every=2,
     )
-    assert set(metrics) == {"iid_acc", "compo_acc"}
+    assert {"iid_acc", "compo_acc", "compo_target_acc", "topsim"} <= set(metrics)
     with open(tmp_path / "metrics.csv") as f:
         rows = list(csv.DictReader(f))
     assert [r["step"] for r in rows] == ["2", "3", "4", "6"]
@@ -118,3 +118,46 @@ def test_cli_train_eval_plot(tmp_path: Path) -> None:
 
     result = runner.invoke(main, ["train", "--steps", "1", "--heldout", "red"])
     assert result.exit_code != 0
+
+
+def test_train_large_world_logs_language_metrics(tmp_path: Path) -> None:
+    metrics = train(
+        n_steps=4,
+        k=6,
+        v=8,
+        message_length=2,
+        batch_size=4,
+        hidden_size=16,
+        heldout_pairs=[("yellow", "star")],
+        world="large",
+        out_dir=str(tmp_path),
+        eval_every=4,
+        n_eval=20,
+    )
+    assert {"compo_target_acc", "topsim", "posdis", "n_messages"} <= set(metrics)
+    ckpt = torch.load(tmp_path / "checkpoints" / "final_model.pt", weights_only=False)
+    assert ckpt["world"] == "large" and ckpt["config"].object_dim == 16
+
+
+def test_eval_splits_and_pragmatic(tmp_path: Path) -> None:
+    from langlab.analysis.eval import evaluate
+
+    train(
+        n_steps=2,
+        k=4,
+        v=8,
+        message_length=2,
+        batch_size=4,
+        hidden_size=16,
+        heldout_pairs=[("red", "circle")],
+        out_dir=str(tmp_path),
+        n_eval=10,
+    )
+    ckpt = str(tmp_path / "checkpoints" / "final_model.pt")
+    for split in ["train", "iid", "compo", "compo_target", "distractor"]:
+        res = evaluate(ckpt, split=split, n_scenes=40)
+        assert 0.0 <= res["acc"] <= 1.0 and "topsim" in res
+    res = evaluate(ckpt, split="distractor", n_scenes=40, pragmatic=True)
+    assert 0.0 <= res["acc"] <= 1.0
+    with pytest.raises(ValueError):
+        evaluate(ckpt, split="bogus")

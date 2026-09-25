@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import CommunicationConfig
-from ..data.world import TOTAL_ATTRIBUTES
 
 
 def _sample_tokens(
@@ -73,7 +72,7 @@ class Speaker(nn.Module):
         self.config = config
 
         # Input encoding dimension (object attributes)
-        self.input_dim = TOTAL_ATTRIBUTES
+        self.input_dim = config.object_dim
 
         # Enhanced neural network layers with residual connections and layer normalization
         self.encoder = nn.Sequential(
@@ -182,7 +181,7 @@ class Listener(nn.Module):
 
         # Input dimensions
         self.message_dim = config.vocabulary_size  # One-hot encoded message
-        self.object_dim = TOTAL_ATTRIBUTES  # Encoded object
+        self.object_dim = config.object_dim  # Encoded object
 
         # Calculate input dimension for message encoder
         message_input_dim = config.message_length * config.vocabulary_size
@@ -440,7 +439,7 @@ class SpeakerSeq(nn.Module):
         self.config = config
 
         # Input encoding dimension (object attributes)
-        self.input_dim = TOTAL_ATTRIBUTES
+        self.input_dim = config.object_dim
         self.vocab_size = config.vocabulary_size
         self.message_length = config.message_length
         self.hidden_size = config.hidden_size
@@ -561,7 +560,7 @@ class ListenerSeq(nn.Module):
 
         # Input dimensions
         self.vocab_size = config.vocabulary_size
-        self.object_dim = TOTAL_ATTRIBUTES
+        self.object_dim = config.object_dim
         self.hidden_size = config.hidden_size
 
         # Token embedding
