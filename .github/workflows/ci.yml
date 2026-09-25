@@ -75,6 +75,9 @@ jobs:
         uv run langlab plot
         test -f outputs/training_curve.png
 
+    - name: Population training
+      run: uv run langlab pop-train --steps 20 --k 3 --agents 2 --lifespan 10 --eval-every 10
+
   build:
     runs-on: ubuntu-latest
     needs: [test, smoke-test]

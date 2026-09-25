@@ -1,16 +1,14 @@
-"""Simplified Command-line interface for the Language Emergence Lab.
+"""Command-line interface for the Language Emergence Lab."""
 
-This module provides a strictly essential CLI for training and evaluating
-emergent language models in referential games.
-"""
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import click
-from typing import List, Optional, Tuple
 
-from ..data.world import sample_scene
-from ..utils.utils import get_logger
-from ..training.train import train as train_model
+from ..analysis.eval import SPLITS
 from ..analysis.eval import evaluate as evaluate_model
+from ..data.world import WORLDS, sample_scene
+from ..training.train import train as train_model
+from ..utils.utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -52,79 +50,149 @@ def sample(k: int, seed: int) -> None:
         click.echo(f"  {i}: {obj}")
 
 
-@main.command()
-@click.option("--steps", default=10000, help="Number of training steps")
-@click.option("--k", default=5, help="Number of objects per scene")
-@click.option("--v", default=16, help="Vocabulary size")
-@click.option(
-    "--l", "--message-length", "message_length", default=2, help="Message length"
-)
-@click.option("--seed", default=7, help="Random seed")
-@click.option("--batch-size", default=32, help="Batch size")
-@click.option("--learning-rate", default=2e-4, help="Learning rate")
-@click.option("--hidden-size", default=128, help="Hidden dimension size")
-@click.option("--use-sequence-models", is_flag=True, help="Use sequence-aware models")
-@click.option("--entropy-weight", default=0.01, help="Speaker entropy bonus weight")
-@click.option("--heldout", default=None, help=HELDOUT_HELP)
-@click.option("--eval-every", default=500, help="Evaluate every N steps")
-@click.option(
-    "--out-dir", default="outputs", help="Directory for metrics and checkpoints"
-)
-def train(
-    steps: int,
-    k: int,
-    v: int,
-    message_length: int,
-    seed: int,
-    batch_size: int,
-    learning_rate: float,
-    hidden_size: int,
-    use_sequence_models: bool,
-    entropy_weight: float,
-    heldout: Optional[str],
-    eval_every: int,
-    out_dir: str,
-) -> None:
-    """Train Speaker and Listener agents for emergent language."""
+def _heldout(value: Optional[str]) -> Optional[List[Tuple[str, str]]]:
     try:
-        heldout_pairs = parse_heldout(heldout)
+        return parse_heldout(value)
     except click.BadParameter as e:
         raise click.BadParameter(str(e), param_hint="--heldout")
-    metrics = train_model(
-        n_steps=steps,
-        k=k,
-        v=v,
-        message_length=message_length,
-        seed=seed,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        hidden_size=hidden_size,
-        use_sequence_models=use_sequence_models,
-        entropy_weight=entropy_weight,
-        heldout_pairs=heldout_pairs,
-        out_dir=out_dir,
-        eval_every=eval_every,
-    )
+
+
+def training_options(f: Callable[..., Any]) -> Callable[..., Any]:
+    """Options shared by ``train`` and ``pop-train``."""
+    options = [
+        click.option("--steps", "n_steps", default=10000, help="Training steps"),
+        click.option("--k", default=5, help="Number of objects per scene"),
+        click.option("--v", default=16, help="Vocabulary size"),
+        click.option(
+            "--l",
+            "--message-length",
+            "message_length",
+            default=2,
+            help="Message length",
+        ),
+        click.option("--seed", default=7, help="Random seed"),
+        click.option("--batch-size", default=32, help="Batch size"),
+        click.option("--learning-rate", default=2e-4, help="Learning rate"),
+        click.option("--hidden-size", default=128, help="Hidden dimension size"),
+        click.option(
+            "--use-sequence-models", is_flag=True, help="Use GRU sequence agents"
+        ),
+        click.option("--entropy-weight", default=0.01, help="Speaker entropy bonus"),
+        click.option("--heldout", default=None, help=HELDOUT_HELP),
+        click.option(
+            "--world",
+            type=click.Choice(sorted(WORLDS)),
+            default="default",
+            help="Attribute space: default (18 objects) or large (225 objects)",
+        ),
+        click.option("--eval-every", default=500, help="Evaluate every N steps"),
+    ]
+    for option in reversed(options):
+        f = option(f)
+    return f
+
+
+def _echo_metrics(metrics: Dict[str, float]) -> None:
     click.echo("Training completed successfully!")
     for name, value in metrics.items():
         click.echo(f"  {name}: {value:.3f}")
 
 
 @main.command()
+@training_options
+@click.option(
+    "--out-dir", default="outputs", help="Directory for metrics and checkpoints"
+)
+def train(heldout: Optional[str], **kwargs: Any) -> None:
+    """Train a Speaker/Listener pair."""
+    _echo_metrics(train_model(heldout_pairs=_heldout(heldout), **kwargs))
+
+
+@main.command(name="pop-train")
+@training_options
+@click.option("--agents", "n_agents", default=3, help="Speakers (and listeners)")
+@click.option(
+    "--lifespan",
+    default=0,
+    help="Replace the oldest agent every N steps (0 = no turnover)",
+)
+@click.option("--out-dir", default="outputs/population", help="Output directory")
+def pop_train(heldout: Optional[str], **kwargs: Any) -> None:
+    """Train a population of agents in random pairings (cultural transmission)."""
+    from ..training.population import train_population
+
+    _echo_metrics(train_population(heldout_pairs=_heldout(heldout), **kwargs))
+
+
+@main.command()
 @click.option("--ckpt", required=True, help="Path to model checkpoint")
-@click.option("--split", default="iid", help="Data split to evaluate (train/iid/compo)")
+@click.option(
+    "--split", type=click.Choice(SPLITS), default="iid", help="Data split to evaluate"
+)
 @click.option(
     "--heldout", default=None, help=HELDOUT_HELP + " (defaults to the checkpoint's)"
 )
-def eval(ckpt: str, split: str, heldout: Optional[str]) -> None:
+@click.option(
+    "--pragmatic", is_flag=True, help="Use an RSA pragmatic listener (MLP agents)"
+)
+@click.option(
+    "--num-distractors",
+    type=int,
+    default=None,
+    help="Distractors per scene for --split distractor (default k-1)",
+)
+def eval(
+    ckpt: str,
+    split: str,
+    heldout: Optional[str],
+    pragmatic: bool,
+    num_distractors: Optional[int],
+) -> None:
     """Evaluate model performance on specified data split."""
-    try:
-        heldout_pairs = parse_heldout(heldout)
-    except click.BadParameter as e:
-        raise click.BadParameter(str(e), param_hint="--heldout")
-
-    results = evaluate_model(model_path=ckpt, split=split, heldout_pairs=heldout_pairs)
+    results = evaluate_model(
+        model_path=ckpt,
+        split=split,
+        heldout_pairs=_heldout(heldout),
+        pragmatic=pragmatic,
+        num_distractors=num_distractors,
+    )
     click.echo(f"Evaluation Results: {results}")
+
+
+@main.command()
+@click.argument("config", type=click.Path(exists=True, dir_okay=False))
+@click.option("--out-dir", default=None, help="Default: outputs/sweeps/<config name>")
+@click.option("--jobs", default=1, help="Runs to execute in parallel")
+@click.option(
+    "--readme",
+    default=None,
+    help="Write the summary table into this file's results block",
+)
+def sweep(
+    config: str, out_dir: Optional[str], jobs: int, readme: Optional[str]
+) -> None:
+    """Run a JSON sweep config over variants, grid points and seeds."""
+    import json
+    import os
+
+    from ..training.sweep import run_sweep
+
+    with open(config) as f:
+        cfg = json.load(f)
+    if out_dir is None:
+        name = os.path.splitext(os.path.basename(config))[0]
+        out_dir = os.path.join("outputs", "sweeps", name)
+    click.echo(run_sweep(cfg, out_dir, jobs=jobs, readme=readme))
+
+
+@main.command()
+@click.argument("sweep_dir", type=click.Path(exists=True, file_okay=False))
+@click.option("--readme", default=None, help="README to update")
+def report(sweep_dir: str, readme: Optional[str]) -> None:
+    """Re-aggregate a finished sweep into summary.csv / summary.md."""
+    from ..analysis.report import create_report
+
+    click.echo(create_report(sweep_dir, readme=readme))
 
 
 @main.command()

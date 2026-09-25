@@ -35,6 +35,11 @@ def load_training_logs(log_path: str) -> pd.DataFrame:
             "baseline",
             "iid_acc",
             "compo_acc",
+            "compo_target_acc",
+            "topsim",
+            "posdis",
+            "msg_entropy",
+            "n_messages",
         ]
         for col in numeric_columns:
             if col in df.columns:
@@ -70,7 +75,11 @@ def plot_training_curve(metrics_path: str, out_path: str, window: int = 10) -> N
         label="train (smoothed)",
         alpha=0.8,
     )
-    for col, label in [("iid_acc", "eval: iid"), ("compo_acc", "eval: compo")]:
+    for col, label in [
+        ("iid_acc", "eval: iid"),
+        ("compo_acc", "eval: compo"),
+        ("compo_target_acc", "eval: held-out target"),
+    ]:
         if col in df.columns and df[col].notna().any():
             evals = df.dropna(subset=[col])
             ax.plot(evals["step"], evals[col], marker="o", label=label)

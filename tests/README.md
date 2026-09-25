@@ -15,6 +15,10 @@ tests/
 │   ├── test_data.py         # Dataset tests
 │   ├── test_analysis.py     # Analysis function tests
 │   ├── test_pragmatics.py   # Pragmatic inference tests
+│   ├── test_language.py     # TopSim / PosDis / lexicon metrics
+│   ├── test_training.py     # Training loop, CLI, eval splits
+│   ├── test_population.py   # Population training and sweeps
+│   ├── test_report.py       # Sweep aggregation
 │   ├── test_sequences.py    # Sequence model tests
 │   ├── test_splits.py       # Data splitting tests
 │   └── test_basic.py        # Generic smoke tests
@@ -73,17 +77,7 @@ python -m pytest -k "test_speaker"
 
 ### Test Data and Fixtures
 
-The `conftest.py` file provides comprehensive fixtures:
-
-- **`sample_config`**: Standard communication configuration
-- **`large_config`**: Larger configuration for integration tests
-- **`sample_object`**: Sample object for testing
-- **`sample_scene_data`**: Sample scene data
-- **`sample_speaker/listener`**: Pre-configured agents
-- **`sample_dataset`**: Small dataset for testing
-- **`mock_checkpoint`**: Mock checkpoint data
-- **`sample_training_logs`**: Sample training metrics
-- **`temp_output_dir`**: Temporary output directory
+`conftest.py` provides `sample_config`, a small `CommunicationConfig` for fast tests. Tests that write files use pytest's `tmp_path`.
 
 ## 📊 Test Categories
 

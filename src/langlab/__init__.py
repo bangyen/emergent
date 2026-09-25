@@ -7,14 +7,15 @@ games between agents, focusing on object reference and communication patterns.
 __version__ = "0.1.0"
 __author__ = "Language Emergence Lab"
 
-from .data.world import make_object, sample_scene, encode_object
+from .data.world import World, get_world, make_object, sample_scene, encode_object
 from .data.data import ReferentialGameDataset
 from .utils.utils import set_seed, get_device, get_logger
 from .core.config import CommunicationConfig
 from .core.agents import Speaker, Listener
-from .core.channel import DiscreteChannel
 
 __all__ = [
+    "World",
+    "get_world",
     "make_object",
     "sample_scene",
     "encode_object",
@@ -25,5 +26,4 @@ __all__ = [
     "CommunicationConfig",
     "Speaker",
     "Listener",
-    "DiscreteChannel",
 ]
