@@ -39,9 +39,9 @@ class TestCompositionalSplits:
                 )
 
                 # Training set should not contain blue triangle objects
-                assert not (
-                    is_blue and is_triangle
-                ), f"Found blue triangle in training scene {i}, object {obj_idx}"
+                assert not (is_blue and is_triangle), (
+                    f"Found blue triangle in training scene {i}, object {obj_idx}"
+                )
 
     def test_compositional_split_sizes(self) -> None:
         """Test that splits have reasonable sizes."""
@@ -62,9 +62,9 @@ class TestCompositionalSplits:
 
         # Total should be approximately n_scenes
         total_size = train_size + iid_size + compo_size
-        assert (
-            total_size <= n_scenes
-        ), f"Total size {total_size} exceeds requested {n_scenes}"
+        assert total_size <= n_scenes, (
+            f"Total size {total_size} exceeds requested {n_scenes}"
+        )
 
     def test_compositional_split_reproducibility(self) -> None:
         """Test that splits are reproducible with same seed."""
@@ -87,9 +87,9 @@ class TestCompositionalSplits:
                 scene1, target1 = dataset1[i]
                 scene2, target2 = dataset2[i]
 
-                assert torch.equal(
-                    scene1, scene2
-                ), f"Split {split_name} scene {i} differs"
+                assert torch.equal(scene1, scene2), (
+                    f"Split {split_name} scene {i} differs"
+                )
                 assert target1 == target2, f"Split {split_name} target {i} differs"
 
     def test_compositional_split_different_seeds(self) -> None:
@@ -209,3 +209,31 @@ class TestCompositionalDataset:
         # Invalid index should raise IndexError
         with pytest.raises(IndexError):
             dataset[1]
+
+
+def test_heldout_target_dataset() -> None:
+    from langlab.data.data import heldout_objects, make_heldout_target_dataset
+
+    ds = make_heldout_target_dataset(50, 4, [("red", "circle")], seed=0)
+    assert len(ds) == 50
+    held = heldout_objects([("red", "circle")])
+    targets = set()
+    for scene, target in zip(ds.scenes, ds.targets):
+        assert tuple(sorted(scene[target].values())) in held
+        targets.add(target)
+    assert len(targets) > 1  # target position varies
+    with pytest.raises(ValueError):
+        make_heldout_target_dataset(5, 3, [], seed=0)
+
+
+def test_distractor_dataset_shuffles_target() -> None:
+    from langlab.data.data import DistractorDataset
+
+    ds = DistractorDataset(50, 4, 3, seed=0)
+    assert len({t for _, t in ds}) > 1
+    for scene, target in zip(ds.scenes, ds.targets):
+        others = [o for i, o in enumerate(scene) if i != target]
+        assert all(
+            any(o[a] == scene[target][a] for a in ("color", "shape", "size"))
+            for o in others
+        )

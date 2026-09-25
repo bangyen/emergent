@@ -10,7 +10,7 @@ name = "langlab"
 version = "0.1.0"
 description = "Language Emergence Lab - studying proto-language in referential games"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Bangyen Pham", email = "bangyenp@gmail.com"},
@@ -22,8 +22,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -32,22 +30,20 @@ classifiers = [
 
 dependencies = [
     "click>=8.0.0",
-    "torch>=1.9.0",
+    "torch>=1.13.0",
     "numpy>=1.21.0",
-    "matplotlib>=3.5.0",
-    "seaborn>=0.11.0",
-    "pandas>=1.5.0",
-    "scipy>=1.7.0",
-    "mlflow>=2.0.0",
-    "tqdm>=4.64.0",
 ]
 
 [project.optional-dependencies]
+analysis = [
+    "matplotlib>=3.5.0",
+    "pandas>=1.5.0",
+]
 dev = [
+    "langlab[analysis]",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
+    "ruff>=0.6.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
 ]
@@ -66,9 +62,9 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py38']
+target-version = "py310"
 
 [tool.mypy]
 python_version = "3.10"

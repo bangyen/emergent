@@ -4,171 +4,196 @@ This module provides dataset classes for generating and managing data for
 referential game experiments, enabling systematic study of proto-language emergence.
 """
 
-from typing import Tuple, Iterator, Optional, List, Dict
+import random
+from typing import Dict, Iterator, List, Optional, Sequence, Set, Tuple
+
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 
 from .world import (
-    sample_scene,
+    DEFAULT_WORLD,
+    Object,
+    ObjectKey,
+    World,
     sample_distractor_scene,
-    encode_object,
-    COLORS,
-    SHAPES,
-    SIZES,
+    sample_scene,
 )
 from ..utils.utils import set_seed
 
+Sample = Tuple[torch.Tensor, int]
 
-class ReferentialGameDataset(Dataset):
-    """Dataset for referential game experiments.
 
-    This dataset generates scenes with K objects and provides the necessary
-    data for training agents in referential games. Each sample contains a
-    scene tensor, target index, and candidate encodings for the referential task.
-    """
+def object_key(obj: Dict[str, str]) -> ObjectKey:
+    """Order-independent hashable key for an object."""
+    return World.key(obj)
 
-    def __init__(self, n_scenes: int, k: int, seed: Optional[int] = None):
-        """Initialize the referential game dataset.
 
-        Args:
-            n_scenes: Number of scenes to generate in the dataset.
-            k: Number of objects per scene.
-            seed: Random seed for reproducible dataset generation.
-        """
-        self.n_scenes = n_scenes
-        self.k = k
-        self.seed = seed
+def heldout_objects(
+    heldout_pairs: Sequence[Tuple[str, str]], world: World = DEFAULT_WORLD
+) -> Set[ObjectKey]:
+    """Return keys of every object carrying both attributes of any held-out pair."""
+    return world.heldout_keys(heldout_pairs)
 
-        # Generate all scenes upfront for efficiency
-        self._generate_scenes()
 
-    def _generate_scenes(self) -> None:
-        """Generate all scenes for the dataset."""
-        if self.seed is not None:
-            set_seed(self.seed)
+def encode_scene(scene: Sequence[Object], world: World = DEFAULT_WORLD) -> torch.Tensor:
+    return torch.stack([world.encode(obj) for obj in scene])
 
-        self.scenes = []
-        self.target_indices = []
 
-        for i in range(self.n_scenes):
-            # Use scene index as additional seed component for variety
-            scene_seed = self.seed + i if self.seed is not None else None
-            scene_objects, target_idx = sample_scene(self.k, scene_seed)
+class SceneListDataset(Dataset):
+    """Dataset over a fixed list of pre-generated scenes."""
 
-            # Encode scene as tensor
-            scene_tensor = torch.stack([encode_object(obj) for obj in scene_objects])
-
-            self.scenes.append(scene_tensor)
-            self.target_indices.append(target_idx)
+    def __init__(
+        self,
+        scenes: List[List[Object]],
+        targets: List[int],
+        world: World = DEFAULT_WORLD,
+    ):
+        self.scenes = scenes
+        self.targets = targets
+        self.encoded_scenes = [encode_scene(s, world) for s in scenes]
 
     def __len__(self) -> int:
-        """Return the number of scenes in the dataset."""
-        return self.n_scenes
+        return len(self.scenes)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        """Get a single scene from the dataset.
-
-        Args:
-            idx: Index of the scene to retrieve.
-
-        Returns:
-            A tuple containing:
-            - scene_tensor: Tensor of shape (K, TOTAL_ATTRIBUTES) with encoded objects
-            - target_idx: Index of the target object in the scene
-        """
+    def __getitem__(self, idx: int) -> Sample:
         if idx >= len(self):
             raise IndexError(
                 f"Index {idx} out of range for dataset of size {len(self)}"
             )
+        return self.encoded_scenes[idx], self.targets[idx]
 
-        scene_tensor = self.scenes[idx]
-        target_idx = self.target_indices[idx]
-
-        return scene_tensor, target_idx
-
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
-        """Iterate over all scenes in the dataset."""
+    def __iter__(self) -> Iterator[Sample]:
         for i in range(len(self)):
             yield self[i]
 
 
-class DistractorDataset(Dataset):
-    """Dataset for distractor-heavy referential game experiments.
+# Kept under its historical name for callers of make_compositional_splits.
+CompositionalDataset = SceneListDataset
 
-    This dataset generates scenes with distractor objects that share attributes
-    with the target, creating pragmatic challenges for literal interpretation.
+
+class ReferentialGameDataset(SceneListDataset):
+    """Fixed set of ``n_scenes`` random scenes with K objects each.
+
+    Scene ``i`` is drawn with seed ``seed + i`` (reseeding global RNGs), so
+    datasets are reproducible and prefixes of one another.
     """
 
     def __init__(
-        self, n_scenes: int, k: int, num_distractors: int, seed: Optional[int] = None
+        self,
+        n_scenes: int,
+        k: int,
+        seed: Optional[int] = None,
+        world: World = DEFAULT_WORLD,
     ):
-        """Initialize the distractor dataset.
+        self.n_scenes = n_scenes
+        self.k = k
+        self.seed = seed
+        if seed is not None:
+            set_seed(seed)
+        scenes, targets = [], []
+        for i in range(n_scenes):
+            scene_seed = seed + i if seed is not None else None
+            scene, target = sample_scene(k, scene_seed, world=world)
+            scenes.append(scene)
+            targets.append(target)
+        super().__init__(scenes, targets, world)
 
-        Args:
-            n_scenes: Number of scenes to generate in the dataset.
-            k: Number of objects per scene.
-            num_distractors: Number of distractor objects that share attributes with target.
-            seed: Random seed for reproducible dataset generation.
-        """
+
+class DistractorDataset(SceneListDataset):
+    """Scenes where ``num_distractors`` objects share attributes with the target.
+
+    The target is placed at a random index so position carries no signal.
+    """
+
+    def __init__(
+        self,
+        n_scenes: int,
+        k: int,
+        num_distractors: int,
+        seed: Optional[int] = None,
+        world: World = DEFAULT_WORLD,
+    ):
         self.n_scenes = n_scenes
         self.k = k
         self.num_distractors = num_distractors
         self.seed = seed
-
-        # Generate all scenes upfront for efficiency
-        self._generate_scenes()
-
-    def _generate_scenes(self) -> None:
-        """Generate all distractor scenes for the dataset."""
-        if self.seed is not None:
-            set_seed(self.seed)
-
-        self.scenes = []
-        self.target_indices = []
-
-        for i in range(self.n_scenes):
-            # Use scene index as additional seed component for variety
-            scene_seed = self.seed + i if self.seed is not None else None
-            scene_objects, target_idx = sample_distractor_scene(
-                self.k, self.num_distractors, scene_seed
+        rng = random.Random(seed)
+        scenes, targets = [], []
+        for _ in range(n_scenes):
+            scene, target = sample_distractor_scene(
+                k, num_distractors, rng=rng, world=world, shuffle_target=True
             )
+            scenes.append(scene)
+            targets.append(target)
+        super().__init__(scenes, targets, world)
 
-            self.scenes.append(scene_objects)
-            self.target_indices.append(target_idx)
 
-    def __len__(self) -> int:
-        """Return the number of scenes in the dataset."""
-        return len(self.scenes)
+class SceneStream(IterableDataset):
+    """Endless stream of freshly sampled scenes, generated on the fly.
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        """Get a single sample from the dataset.
+    Uses a private RNG so iterating does not disturb global random state, and
+    skips any scene containing a held-out object so those combinations are
+    never seen in training.
 
-        Args:
-            idx: Index of the sample to retrieve.
+    Args:
+        k: Number of objects per scene.
+        seed: Seed for the stream's private RNG.
+        heldout_pairs: Attribute pairs whose objects must never appear.
+        world: World to draw objects from.
+        hard_distractors: How many of the k - 1 distractors must share at least
+            one attribute with the target (0 = uniformly random scenes). Hard
+            distractors force the speaker to describe more than one attribute.
+    """
 
-        Returns:
-            A tuple containing:
-            - scene_tensor: Tensor of shape (k, object_dim) with encoded objects
-            - target_idx: Index of the target object in the scene
-        """
-        if idx >= len(self):
-            raise IndexError(
-                f"Index {idx} out of range for dataset of size {len(self)}"
-            )
+    def __init__(
+        self,
+        k: int,
+        seed: Optional[int] = None,
+        heldout_pairs: Optional[Sequence[Tuple[str, str]]] = None,
+        world: World = DEFAULT_WORLD,
+        hard_distractors: int = 0,
+    ):
+        if not 0 <= hard_distractors < k:
+            raise ValueError("hard_distractors must be in [0, k)")
+        self.k = k
+        self.seed = seed
+        self.world = world
+        self.hard_distractors = hard_distractors
+        self.excluded = world.heldout_keys(heldout_pairs or [])
+        if world.n_objects - len(self.excluded) < k:
+            raise ValueError("Too many held-out objects to fill a scene")
+        self._allowed_objects = [
+            o for o in world.objects if World.key(o) not in self.excluded
+        ]
 
-        scene_objects = self.scenes[idx]
-        target_idx = self.target_indices[idx]
+    def __iter__(self) -> Iterator[Sample]:
+        rng = random.Random(self.seed)
+        objects = self._allowed_objects
+        encodings = [self.world.encode(o) for o in objects]
+        if not self.hard_distractors:
+            while True:
+                idx = rng.sample(range(len(objects)), self.k)
+                target = rng.randint(0, self.k - 1)
+                yield torch.stack([encodings[i] for i in idx]), target
 
-        # Encode all objects in the scene
-        encoded_objects = [encode_object(obj) for obj in scene_objects]
-        scene_tensor = torch.stack(encoded_objects)
-
-        return scene_tensor, target_idx
-
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
-        """Iterate over all scenes in the dataset."""
-        for i in range(len(self)):
-            yield self[i]
+        names = self.world.names
+        similar = [
+            [
+                j
+                for j, other in enumerate(objects)
+                if j != i and any(other[n] == obj[n] for n in names)
+            ]
+            for i, obj in enumerate(objects)
+        ]
+        while True:
+            t = rng.randrange(len(objects))
+            hard = rng.sample(similar[t], min(self.hard_distractors, len(similar[t])))
+            rest = [j for j in range(len(objects)) if j != t and j not in hard]
+            others = hard + rng.sample(rest, self.k - 1 - len(hard))
+            rng.shuffle(others)
+            target = rng.randint(0, self.k - 1)
+            others.insert(target, t)
+            yield torch.stack([encodings[i] for i in others]), target
 
 
 def make_compositional_splits(
@@ -176,147 +201,69 @@ def make_compositional_splits(
     k: int,
     heldout_pairs: List[Tuple[str, str]],
     seed: Optional[int] = None,
-) -> Dict[str, "CompositionalDataset"]:
+    world: World = DEFAULT_WORLD,
+) -> Dict[str, SceneListDataset]:
     """Create compositional splits for testing generalization.
 
-    This function creates train/test splits where the training set excludes
-    scenes containing specific held-out attribute combinations, enabling
-    evaluation of compositional generalization capabilities.
-
-    Args:
-        n_scenes: Total number of scenes to generate.
-        k: Number of objects per scene.
-        heldout_pairs: List of (attribute1, attribute2) pairs to hold out from training.
-        seed: Random seed for reproducible generation.
-
     Returns:
-        Dictionary with keys 'train', 'iid', 'compo' containing datasets:
-        - 'train': Training set excluding held-out combinations
-        - 'iid': In-distribution test set (same distribution as train)
-        - 'compo': Compositional test set containing held-out combinations
+        Dictionary with datasets (60/20/20 of ``n_scenes``):
+        - 'train': scenes without any held-out object
+        - 'iid': more scenes without any held-out object
+        - 'compo': scenes containing at least one held-out object
     """
     if seed is not None:
         set_seed(seed)
+    excluded = world.heldout_keys(heldout_pairs)
 
-    # Generate all possible objects
-    all_objects = []
-    for color in COLORS:
-        for shape in SHAPES:
-            for size in SIZES:
-                all_objects.append({"color": color, "shape": shape, "size": size})
+    sizes = {"train": int(n_scenes * 0.6), "iid": int(n_scenes * 0.2)}
+    sizes["compo"] = n_scenes - sizes["train"] - sizes["iid"]
+    scenes: Dict[str, List[List[Object]]] = {name: [] for name in sizes}
+    targets: Dict[str, List[int]] = {name: [] for name in sizes}
 
-    # Create held-out object set
-    heldout_objects = set()
-    for attr1, attr2 in heldout_pairs:
-        # Find objects that contain both attributes
-        for obj in all_objects:
-            if attr1 in obj.values() and attr2 in obj.values():
-                heldout_objects.add(tuple(sorted(obj.values())))
+    def full(name: str) -> bool:
+        return len(scenes[name]) >= sizes[name]
 
-    # Generate scenes for each split
-    train_scenes: List[List[Dict[str, str]]] = []
-    iid_scenes: List[List[Dict[str, str]]] = []
-    compo_scenes: List[List[Dict[str, str]]] = []
-
-    train_targets: List[int] = []
-    iid_targets: List[int] = []
-    compo_targets: List[int] = []
-
-    # Calculate target sizes for each split
-    train_size = int(n_scenes * 0.6)
-    iid_size = int(n_scenes * 0.2)
-    compo_size = n_scenes - train_size - iid_size
-
-    # Generate more scenes than needed to ensure we get enough for each split
-    max_attempts = n_scenes * 10  # Increased to ensure we get enough scenes
-    scene_count = 0
-
-    while scene_count < max_attempts and (
-        len(train_scenes) < train_size
-        or len(iid_scenes) < iid_size
-        or len(compo_scenes) < compo_size
-    ):
-        # Generate a scene
-        scene_objects, target_idx = sample_scene(
-            k, seed + scene_count if seed is not None else None
+    attempt = 0
+    while attempt < n_scenes * 10 and not all(full(n) for n in sizes):
+        scene, target = sample_scene(
+            k, seed + attempt if seed is not None else None, world=world
         )
+        attempt += 1
+        if any(World.key(obj) in excluded for obj in scene):
+            name = "compo"
+        else:
+            name = "train" if not full("train") else "iid"
+        if not full(name):
+            scenes[name].append(scene)
+            targets[name].append(target)
 
-        # Check if scene contains held-out combinations
-        scene_combinations = set()
-        for obj in scene_objects:
-            obj_tuple = tuple(sorted(obj.values()))
-            scene_combinations.add(obj_tuple)
-
-        has_heldout = bool(scene_combinations.intersection(heldout_objects))
-
-        # Assign to appropriate split
-        if has_heldout and len(compo_scenes) < compo_size:
-            # Scene contains held-out combinations -> compositional test
-            compo_scenes.append(scene_objects)
-            compo_targets.append(target_idx)
-        elif not has_heldout:
-            # Scene doesn't contain held-out combinations
-            if len(train_scenes) < train_size:
-                train_scenes.append(scene_objects)
-                train_targets.append(target_idx)
-            elif len(iid_scenes) < iid_size:
-                iid_scenes.append(scene_objects)
-                iid_targets.append(target_idx)
-
-        scene_count += 1
-
-    # Create datasets
-    train_dataset = CompositionalDataset(train_scenes, train_targets)
-    iid_dataset = CompositionalDataset(iid_scenes, iid_targets)
-    compo_dataset = CompositionalDataset(compo_scenes, compo_targets)
-
-    return {"train": train_dataset, "iid": iid_dataset, "compo": compo_dataset}
+    return {n: SceneListDataset(scenes[n], targets[n], world) for n in sizes}
 
 
-class CompositionalDataset(Dataset):
-    """Dataset for compositional splits with pre-generated scenes.
+def make_heldout_target_dataset(
+    n_scenes: int,
+    k: int,
+    heldout_pairs: Sequence[Tuple[str, str]],
+    seed: Optional[int] = None,
+    world: World = DEFAULT_WORLD,
+) -> SceneListDataset:
+    """Scenes whose *target* is a held-out object (the strict compositional test).
 
-    This dataset class stores pre-generated scenes and targets, enabling
-    precise control over train/test splits for compositional generalization.
+    Distractors are drawn from the remaining objects and the target is placed at a
+    random index.
     """
-
-    def __init__(self, scenes: List[List[Dict[str, str]]], targets: List[int]):
-        """Initialize compositional dataset.
-
-        Args:
-            scenes: List of scenes, where each scene is a list of object dictionaries.
-            targets: List of target indices corresponding to each scene.
-        """
-        self.scenes = scenes
-        self.targets = targets
-
-        # Pre-encode all scenes for efficiency
-        self.encoded_scenes = []
-        for scene in scenes:
-            scene_tensor = torch.stack([encode_object(obj) for obj in scene])
-            self.encoded_scenes.append(scene_tensor)
-
-    def __len__(self) -> int:
-        """Return the number of scenes in the dataset."""
-        return len(self.scenes)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        """Get a single scene from the dataset.
-
-        Args:
-            idx: Index of the scene to retrieve.
-
-        Returns:
-            A tuple containing:
-            - scene_tensor: Tensor of shape (K, TOTAL_ATTRIBUTES) with encoded objects
-            - target_idx: Index of the target object in the scene
-        """
-        scene_tensor = self.encoded_scenes[idx]
-        target_idx = self.targets[idx]
-
-        return scene_tensor, target_idx
-
-    def __iter__(self) -> Iterator[Tuple[torch.Tensor, int]]:
-        """Iterate over all scenes in the dataset."""
-        for i in range(len(self)):
-            yield self[i]
+    excluded = world.heldout_keys(heldout_pairs)
+    if not excluded:
+        raise ValueError("heldout_pairs selects no objects")
+    heldout = [o for o in world.objects if World.key(o) in excluded]
+    rng = random.Random(seed)
+    scenes, targets = [], []
+    for _ in range(n_scenes):
+        target_obj = rng.choice(heldout)
+        others = rng.sample([o for o in world.objects if o != target_obj], k - 1)
+        target = rng.randint(0, k - 1)
+        scene = [dict(o) for o in others]
+        scene.insert(target, dict(target_obj))
+        scenes.append(scene)
+        targets.append(target)
+    return SceneListDataset(scenes, targets, world)

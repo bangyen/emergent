@@ -91,9 +91,9 @@ class TestTrainingSmoke:
 
                 assert sd1.keys() == sd2.keys()
                 for k in sd1:
-                    assert torch.allclose(
-                        sd1[k], sd2[k]
-                    ), f"Weights for {k} in {key} differ"
+                    assert torch.allclose(sd1[k], sd2[k]), (
+                        f"Weights for {k} in {key} differ"
+                    )
 
             logger.info("Reproducibility test passed (weights are identical).")
 

@@ -1,394 +1,164 @@
-"""Reporting module for ablation study analysis and visualization.
+"""Aggregate sweep results into CSV / Markdown tables.
 
-This module provides functionality for aggregating ablation study results,
-generating comparative visualizations, and producing summary reports
-to understand parameter effects on emergent language performance.
+A sweep (see :mod:`langlab.training.sweep`) writes one ``results.json`` per run
+and seed::
+
+    {"run": "mlp", "seed": 1, "params": {...}, "metrics": {"iid_acc": 1.0, ...}}
+
+This module groups them by ``run`` and reports mean ± std over seeds. It only
+uses the standard library.
 """
 
+import csv
 import glob
 import json
 import os
-from typing import Dict, Any, Optional
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import re
+from statistics import mean, stdev
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..utils.utils import get_logger
 
 logger = get_logger(__name__)
 
+# Metric columns shown in reports, in order, with their display names.
+REPORT_METRICS = {
+    "iid_acc": "IID acc",
+    "compo_acc": "Compo acc",
+    "compo_target_acc": "Held-out target acc",
+    "iid_acc_min": "Worst pair acc",
+    "agreement": "Agreement",
+    "topsim_initial": "TopSim (1st eval)",
+    "topsim": "TopSim",
+    "posdis": "PosDis",
+    "n_messages": "# messages",
+}
 
-def load_experiment_results(experiment_dir: str) -> Optional[Dict[str, Any]]:
-    """Load results from a single experiment directory.
-
-    This function loads the metrics.json file from an experiment directory
-    and returns the parsed results for aggregation.
-
-    Args:
-        experiment_dir: Path to the experiment directory.
-
-    Returns:
-        Dictionary containing experiment results, or None if loading fails.
-    """
-    metrics_path = os.path.join(experiment_dir, "metrics.json")
-
-    if not os.path.exists(metrics_path):
-        logger.warning(f"Metrics file not found: {metrics_path}")
-        return None
-
-    try:
-        with open(metrics_path, "r") as f:
-            results = json.load(f)
-        return results  # type: ignore
-    except Exception as e:
-        logger.error(f"Failed to load results from {experiment_dir}: {e}")
-        return None
+README_START = "<!-- results:start -->"
+README_END = "<!-- results:end -->"
 
 
-def aggregate_results(input_pattern: str) -> pd.DataFrame:
-    """Aggregate results from multiple experiments into a single DataFrame.
-
-    This function searches for experiment directories matching the input pattern,
-    loads their results, and combines them into a structured DataFrame for analysis.
-
-    Args:
-        input_pattern: Glob pattern to match experiment directories (e.g., "outputs/experiments/**/metrics.json").
-
-    Returns:
-        DataFrame with columns: V, channel_noise, length_cost, acc, compo_acc, zipf_slope.
-    """
-    # Find all matching experiment directories
-    experiment_dirs = glob.glob(input_pattern.replace("/metrics.json", ""))
-
-    logger.info(f"Found {len(experiment_dirs)} experiment directories")
-
-    aggregated_data = []
-
-    for exp_dir in experiment_dirs:
-        results = load_experiment_results(exp_dir)
-
-        if results is None:
-            continue
-
-        # Extract parameters and metrics
-        params = results["params"]
-        metrics = results["metrics"]
-        zipf_slope = results["zipf_slope"]
-
-        row = {
-            "V": params["V"],
-            "channel_noise": params["channel_noise"],
-            "length_cost": params["length_cost"],
-            "acc": metrics["train"]["acc"],
-            "compo_acc": metrics["compo"]["acc"],
-            "zipf_slope": zipf_slope,
-            "experiment_id": results["experiment_id"],
-        }
-
-        aggregated_data.append(row)
-
-    if not aggregated_data:
-        logger.warning("No valid experiment results found")
-        return pd.DataFrame()
-
-    df = pd.DataFrame(aggregated_data)
-    logger.info(f"Aggregated {len(df)} experiment results")
-
-    return df
+def readme_markers(block: str = "results") -> Tuple[str, str]:
+    """Start/end markers delimiting a named results block in a README."""
+    return f"<!-- {block}:start -->", f"<!-- {block}:end -->"
 
 
-def save_aggregated_csv(df: pd.DataFrame, output_path: str) -> None:
-    """Save aggregated results to CSV file.
-
-    This function saves the aggregated DataFrame to a CSV file for further
-    analysis and sharing of results.
-
-    Args:
-        df: DataFrame containing aggregated results.
-        output_path: Path where to save the CSV file.
-    """
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    df.to_csv(output_path, index=False)
-    logger.info(f"Aggregated results saved to: {output_path}")
+def load_results(sweep_dir: str) -> List[Dict[str, Any]]:
+    """Load every ``results.json`` under ``sweep_dir``, sorted by run then seed."""
+    results = []
+    for path in glob.glob(
+        os.path.join(sweep_dir, "**", "results.json"), recursive=True
+    ):
+        with open(path) as f:
+            results.append(json.load(f))
+    return sorted(results, key=lambda r: (r.get("order", 0), r["run"], r["seed"]))
 
 
-def create_comparative_chart(
-    df: pd.DataFrame,
-    output_path: str,
-    metric: str = "acc",
-    title: str = "Ablation Study Results",
-) -> None:
-    """Create comparative bar chart for ablation study results.
+def aggregate(results: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """One row per run: ``{"run", "n_seeds", "<metric>_mean", "<metric>_std", ...}``."""
+    runs: Dict[str, List[Dict[str, Any]]] = {}
+    for r in results:
+        runs.setdefault(r["run"], []).append(r)
 
-    This function generates a bar chart comparing performance across different
-    parameter combinations, with separate bars for each condition.
-
-    Args:
-        df: DataFrame containing aggregated results.
-        output_path: Path where to save the chart.
-        metric: Metric to plot ("acc" or "compo_acc").
-        title: Title for the chart.
-    """
-    if df.empty:
-        logger.warning("No data to plot")
-        return
-
-    # Set up the plot style
-    plt.style.use("default")
-    sns.set_palette("husl")
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Create condition labels
-    df["condition"] = df.apply(
-        lambda row: f"V={row['V']}, noise={row['channel_noise']:.2f}, len={row['length_cost']:.2f}",
-        axis=1,
-    )
-
-    # Sort by metric value for better visualization
-    df_sorted = df.sort_values(metric, ascending=True)
-
-    # Create bar plot
-    bars = ax.barh(range(len(df_sorted)), df_sorted[metric], alpha=0.7)
-
-    # Customize plot
-    ax.set_yticks(range(len(df_sorted)))
-    ax.set_yticklabels(df_sorted["condition"], fontsize=10)
-    ax.set_xlabel(f"{metric.replace('_', ' ').title()}", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold")
-
-    # Add value labels on bars
-    for i, (bar, value) in enumerate(zip(bars, df_sorted[metric])):
-        ax.text(value + 0.01, i, f"{value:.3f}", va="center", fontsize=9)
-
-    # Add grid
-    ax.grid(axis="x", alpha=0.3)
-
-    # Adjust layout
-    plt.tight_layout()
-
-    # Save plot
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close()
-
-    logger.info(f"Comparative chart saved to: {output_path}")
+    rows = []
+    for run, rs in runs.items():
+        row: Dict[str, Any] = {"run": run, "n_seeds": len(rs)}
+        for metric in REPORT_METRICS:
+            values = [r["metrics"][metric] for r in rs if metric in r["metrics"]]
+            if values:
+                row[f"{metric}_mean"] = mean(values)
+                row[f"{metric}_std"] = stdev(values) if len(values) > 1 else 0.0
+        rows.append(row)
+    return rows
 
 
-def create_heatmap_chart(
-    df: pd.DataFrame,
-    output_path: str,
-    metric: str = "acc",
-    title: str = "Ablation Study Heatmap",
-) -> None:
-    """Create heatmap visualization for ablation study results.
-
-    This function generates a heatmap showing how different parameter combinations
-    affect performance, with one parameter on each axis.
-
-    Args:
-        df: DataFrame containing aggregated results.
-        output_path: Path where to save the chart.
-        metric: Metric to plot ("acc" or "compo_acc").
-        title: Title for the chart.
-    """
-    if df.empty:
-        logger.warning("No data to plot")
-        return
-
-    # Create pivot table for heatmap
-    # Use vocabulary size and channel noise as axes, average across length costs
-    pivot_data = df.groupby(["V", "channel_noise"])[metric].mean().unstack()
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Create heatmap
-    sns.heatmap(
-        pivot_data,
-        annot=True,
-        fmt=".3f",
-        cmap="viridis",
-        ax=ax,
-        cbar_kws={"label": f"{metric.replace('_', ' ').title()}"},
-    )
-
-    # Customize plot
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.set_xlabel("Channel Noise", fontsize=12)
-    ax.set_ylabel("Vocabulary Size", fontsize=12)
-
-    # Adjust layout
-    plt.tight_layout()
-
-    # Save plot
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close()
-
-    logger.info(f"Heatmap chart saved to: {output_path}")
+def write_csv(rows: Sequence[Dict[str, Any]], path: str) -> None:
+    fields: List[str] = []
+    for row in rows:
+        fields += [k for k in row if k not in fields]
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
-def generate_summary_report(df: pd.DataFrame) -> Dict[str, Any]:
-    """Generate summary statistics for ablation study results.
+def _fmt(metric: str, m: float, s: float) -> str:
+    if metric == "n_messages":
+        return f"{m:.1f} ± {s:.1f}"
+    if metric.endswith("acc") or metric in ("agreement", "iid_acc_min"):
+        return f"{100 * m:.1f} ± {100 * s:.1f}%"
+    return f"{m:.2f} ± {s:.2f}"
 
-    This function computes summary statistics across all experiments to
-    identify trends and significant effects in the ablation study.
 
-    Args:
-        df: DataFrame containing aggregated results.
+def to_markdown(
+    rows: Sequence[Dict[str, Any]], metrics: Optional[Sequence[str]] = None
+) -> str:
+    """Markdown table with one column per metric (default: all present in any row)."""
+    metrics = [
+        m
+        for m in (metrics or REPORT_METRICS)
+        if m in REPORT_METRICS and any(f"{m}_mean" in r for r in rows)
+    ]
+    header = ["Run", "Seeds"] + [REPORT_METRICS[m] for m in metrics]
+    lines = [
+        "| " + " | ".join(header) + " |",
+        "|" + "|".join("---" for _ in header) + "|",
+    ]
+    for r in rows:
+        cells = [str(r["run"]), str(r["n_seeds"])]
+        for m in metrics:
+            cells.append(
+                _fmt(m, r[f"{m}_mean"], r[f"{m}_std"]) if f"{m}_mean" in r else "–"
+            )
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
 
-    Returns:
-        Dictionary containing summary statistics.
-    """
-    if df.empty:
-        return {"error": "No data available for summary"}
 
-    summary = {
-        "total_experiments": len(df),
-        "parameter_ranges": {
-            "vocabulary_size": {"min": df["V"].min(), "max": df["V"].max()},
-            "channel_noise": {
-                "min": df["channel_noise"].min(),
-                "max": df["channel_noise"].max(),
-            },
-            "length_cost": {
-                "min": df["length_cost"].min(),
-                "max": df["length_cost"].max(),
-            },
-        },
-        "performance_stats": {
-            "accuracy": {
-                "mean": df["acc"].mean(),
-                "std": df["acc"].std(),
-                "min": df["acc"].min(),
-                "max": df["acc"].max(),
-            },
-            "compositional_accuracy": {
-                "mean": df["compo_acc"].mean(),
-                "std": df["compo_acc"].std(),
-                "min": df["compo_acc"].min(),
-                "max": df["compo_acc"].max(),
-            },
-            "zipf_slope": {
-                "mean": df["zipf_slope"].mean(),
-                "std": df["zipf_slope"].std(),
-                "min": df["zipf_slope"].min(),
-                "max": df["zipf_slope"].max(),
-            },
-        },
-        "best_performing": {
-            "accuracy": df.loc[df["acc"].idxmax()].to_dict(),
-            "compositional_accuracy": df.loc[df["compo_acc"].idxmax()].to_dict(),
-        },
-    }
-
-    return summary
+def update_readme(readme_path: str, markdown: str, block: str = "results") -> None:
+    """Replace the text between the ``block`` markers in ``readme_path``."""
+    start, end = readme_markers(block)
+    with open(readme_path) as f:
+        text = f.read()
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+    if not pattern.search(text):
+        raise ValueError(f"{readme_path} has no {start} ... {end} block")
+    replacement = f"{start}\n{markdown}\n{end}"
+    with open(readme_path, "w") as f:
+        f.write(pattern.sub(lambda _: replacement, text))
 
 
 def create_report(
-    input_pattern: str,
-    output_dir: str = "outputs/summary",
-    create_charts: bool = True,
-) -> Dict[str, Any]:
-    """Create comprehensive ablation study report.
+    sweep_dir: str,
+    readme: Optional[str] = None,
+    block: Optional[str] = None,
+    metrics: Optional[Sequence[str]] = None,
+) -> str:
+    """Aggregate ``sweep_dir`` into ``summary.csv`` and ``summary.md``.
 
-    This function aggregates results from experiments, generates visualizations,
-    and creates a summary report with key findings.
-
-    Args:
-        input_pattern: Glob pattern to match experiment directories.
-        output_dir: Directory where to save report files.
-        create_charts: Whether to generate visualization charts.
+    ``block`` and ``metrics`` default to the ``readme_block`` and
+    ``report_metrics`` keys of the sweep's ``sweep.json``, if present.
 
     Returns:
-        Dictionary containing summary statistics and report paths.
+        The Markdown table (also written into ``readme`` if given).
     """
-    logger.info(f"Creating ablation study report from: {input_pattern}")
+    results = load_results(sweep_dir)
+    if not results:
+        raise ValueError(f"No results.json found under {sweep_dir}")
+    config_path = os.path.join(sweep_dir, "sweep.json")
+    config: Dict[str, Any] = {}
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            config = json.load(f)
+    block = block or config.get("readme_block", "results")
+    metrics = metrics or config.get("report_metrics")
 
-    # Aggregate results
-    df = aggregate_results(input_pattern)
-
-    if df.empty:
-        logger.error("No experiment results found to create report")
-        return {"error": "No experiment results found"}
-
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Save aggregated CSV
-    csv_path = os.path.join(output_dir, "ablation.csv")
-    save_aggregated_csv(df, csv_path)
-
-    # Generate summary statistics
-    summary = generate_summary_report(df)
-
-    # Save summary to JSON
-    summary_path = os.path.join(output_dir, "summary.json")
-
-    # Convert numpy types to Python types for JSON serialization
-    def convert_numpy_types(obj: Any) -> Any:
-        if isinstance(obj, dict):
-            return {k: convert_numpy_types(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_numpy_types(v) for v in obj]
-        elif hasattr(obj, "item"):  # numpy scalar
-            return obj.item()
-        else:
-            return obj
-
-    summary_serializable = convert_numpy_types(summary)
-
-    with open(summary_path, "w") as f:
-        json.dump(summary_serializable, f, indent=2)
-
-    report_info = {
-        "csv_path": csv_path,
-        "summary_path": summary_path,
-        "total_experiments": len(df),
-        "summary": summary,
-    }
-
-    # Create charts if requested
-    if create_charts:
-        figures_dir = os.path.join(output_dir, "..", "figures")
-
-        # Accuracy chart
-        acc_chart_path = os.path.join(figures_dir, "ablation_accuracy_bars.png")
-        create_comparative_chart(
-            df, acc_chart_path, "acc", "Accuracy by Parameter Configuration"
-        )
-
-        # Compositional accuracy chart
-        compo_chart_path = os.path.join(figures_dir, "ablation_compo_bars.png")
-        create_comparative_chart(
-            df,
-            compo_chart_path,
-            "compo_acc",
-            "Compositional Accuracy by Parameter Configuration",
-        )
-
-        # Heatmap
-        heatmap_path = os.path.join(figures_dir, "ablation_heatmap.png")
-        create_heatmap_chart(
-            df,
-            heatmap_path,
-            "acc",
-            "Accuracy Heatmap: Vocabulary Size vs Channel Noise",
-        )
-
-        report_info.update(
-            {
-                "accuracy_chart": acc_chart_path,
-                "compo_chart": compo_chart_path,
-                "heatmap": heatmap_path,
-            }
-        )
-
-    logger.info("Ablation study report created successfully")
-    logger.info(f"CSV: {csv_path}")
-    logger.info(f"Summary: {summary_path}")
-
-    return report_info
+    rows = aggregate(results)
+    markdown = to_markdown(rows, metrics)
+    write_csv(rows, os.path.join(sweep_dir, "summary.csv"))
+    with open(os.path.join(sweep_dir, "summary.md"), "w") as f:
+        f.write(markdown + "\n")
+    if readme:
+        update_readme(readme, markdown, block)
+    logger.info(f"Aggregated {len(results)} runs into {len(rows)} rows")
+    return markdown
