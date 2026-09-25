@@ -168,3 +168,19 @@ def test_agent_device_compatibility(
 
     assert speaker_out.tokens.device.type == "cpu"
     assert listener_out.probs.device.type == "cpu"
+
+
+def test_dot_listener_is_additive() -> None:
+    """DotListener scores decompose over (token, attribute) terms."""
+    from langlab.core.agents import DotListener
+
+    config = CommunicationConfig(vocabulary_size=5, message_length=2, hidden_size=16)
+    listener = DotListener(config)
+    tokens = torch.tensor([[1, 3]])
+    objects = torch.eye(8)[[0, 3, 6]].sum(0).view(1, 1, 8)  # one object
+    both = torch.cat([objects, torch.eye(8)[[1, 4, 7]].sum(0).view(1, 1, 8)], 1)
+    out = listener(tokens, both)
+    assert out.probs.shape == (1, 2)
+    assert torch.allclose(out.probs.sum(-1), torch.ones(1))
+    with pytest.raises(ValueError):
+        CommunicationConfig(listener_type="attention")

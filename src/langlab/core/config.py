@@ -20,6 +20,8 @@ class CommunicationConfig:
         object_dim: Size of the one-hot object encoding (default: 8, the default world).
         dropout: Dropout rate in the MLP Speaker/Listener (default: 0.0). Dropout
             makes the speaker's policy noisy and tends to collapse its messages.
+        listener_type: "mlp" (default) or "dot" for the additive DotListener
+            (ignored by sequence models).
         use_sequence_models: Whether to use sequence-aware models (SpeakerSeq/ListenerSeq) (default: False).
         seed: Random seed for reproducibility (default: None).
     """
@@ -29,6 +31,7 @@ class CommunicationConfig:
     hidden_size: int = 128
     object_dim: int = 8
     dropout: float = 0.0
+    listener_type: str = "mlp"
     use_sequence_models: bool = False
     seed: Optional[int] = None
 
@@ -42,5 +45,7 @@ class CommunicationConfig:
             raise ValueError("hidden_size must be positive")
         if self.object_dim <= 0:
             raise ValueError("object_dim must be positive")
+        if self.listener_type not in ("mlp", "dot"):
+            raise ValueError("listener_type must be 'mlp' or 'dot'")
         if not 0.0 <= self.dropout < 1.0:
             raise ValueError("dropout must be in [0, 1)")

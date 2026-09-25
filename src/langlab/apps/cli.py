@@ -90,6 +90,12 @@ def training_options(f: Callable[..., Any]) -> Callable[..., Any]:
             default=0,
             help="Distractors per training scene that share an attribute with the target",
         ),
+        click.option(
+            "--listener-type",
+            type=click.Choice(["mlp", "dot"]),
+            default="mlp",
+            help="Listener architecture; 'dot' is additive and generalizes better",
+        ),
         click.option("--eval-every", default=500, help="Evaluate every N steps"),
     ]
     for option in reversed(options):

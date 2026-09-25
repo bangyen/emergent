@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from ..core.agents import (
+    DotListener,
     Listener,
     ListenerSeq,
     PragmaticListener,
@@ -33,7 +34,10 @@ def build_agents(config: CommunicationConfig, device: torch.device) -> Tuple[Any
     """Instantiate the Speaker/Listener pair that matches ``config``."""
     if getattr(config, "use_sequence_models", False):
         return SpeakerSeq(config).to(device), ListenerSeq(config).to(device)
-    return Speaker(config).to(device), Listener(config).to(device)
+    listener_cls = (
+        DotListener if getattr(config, "listener_type", "mlp") == "dot" else Listener
+    )
+    return Speaker(config).to(device), listener_cls(config).to(device)
 
 
 def accuracy(

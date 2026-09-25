@@ -201,6 +201,7 @@ def train(
     log_every: int = 100,
     world: str = "default",
     hard_distractors: int = 0,
+    listener_type: str = "mlp",
 ) -> Dict[str, float]:
     """Core training loop for emergent language.
 
@@ -223,6 +224,7 @@ def train(
         hidden_size=hidden_size,
         object_dim=world_def.dim,
         use_sequence_models=use_sequence_models,
+        listener_type=listener_type,
         seed=seed,
     )
     speaker, listener = build_agents(config, device)
