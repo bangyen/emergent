@@ -21,7 +21,6 @@ class TestPragmaticListener:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -39,7 +38,6 @@ class TestPragmaticListener:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -63,47 +61,11 @@ class TestPragmaticListener:
         prob_sums = pragmatic_probs.sum(dim=-1)
         assert torch.allclose(prob_sums, torch.ones(batch_size), atol=1e-6)
 
-    def test_pragmatic_listener_multimodal(self) -> None:
-        """Test pragmatic listener with multimodal input."""
-        config = CommunicationConfig(
-            vocabulary_size=10,
-            message_length=2,
-            gesture_size=5,
-            multimodal=True,
-        )
-
-        literal_listener = Listener(config)
-        speaker = Speaker(config)
-        pragmatic_listener = PragmaticListener(config, literal_listener, speaker)
-
-        batch_size = 2
-        num_candidates = 3
-        message_tokens = torch.randint(
-            0, config.vocabulary_size, (batch_size, config.message_length)
-        )
-        gesture_tokens = torch.randint(
-            0, config.gesture_size, (batch_size, config.message_length)
-        )
-        candidate_objects = torch.randn(batch_size, num_candidates, 8)
-
-        listener_out = pragmatic_listener(
-            message_tokens, candidate_objects, gesture_tokens
-        )
-        pragmatic_probs = listener_out.probs
-
-        # Check output shape
-        assert pragmatic_probs.shape == (batch_size, num_candidates)
-
-        # Check probabilities sum to 1
-        prob_sums = pragmatic_probs.sum(dim=-1)
-        assert torch.allclose(prob_sums, torch.ones(batch_size), atol=1e-6)
-
     def test_rsa_reasoning_components(self) -> None:
         """Test RSA reasoning components separately."""
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -217,7 +179,6 @@ class TestPragmaticPerformance:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -279,7 +240,6 @@ class TestPragmaticPerformance:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -312,7 +272,6 @@ class TestPragmaticPerformance:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         literal_listener = Listener(config)
@@ -343,58 +302,6 @@ class TestPragmaticPerformance:
         assert candidate_objects.grad is not None
         assert candidate_objects.grad.shape == candidate_objects.shape
 
-    def test_pragmatic_multimodal_performance(self) -> None:
-        """Test pragmatic listener performance with multimodal input."""
-        config = CommunicationConfig(
-            vocabulary_size=10,
-            message_length=2,
-            gesture_size=5,
-            multimodal=True,
-        )
-
-        literal_listener = Listener(config)
-        speaker = Speaker(config)
-        pragmatic_listener = PragmaticListener(config, literal_listener, speaker)
-
-        batch_size = 2
-        num_candidates = 3
-        message_tokens = torch.randint(
-            0, config.vocabulary_size, (batch_size, config.message_length)
-        )
-        gesture_tokens = torch.randint(
-            0, config.gesture_size, (batch_size, config.message_length)
-        )
-        candidate_objects = torch.randn(batch_size, num_candidates, 8)
-
-        # Test multimodal pragmatic processing
-        listener_out = pragmatic_listener(
-            message_tokens, candidate_objects, gesture_tokens
-        )
-        pragmatic_probs = listener_out.probs
-
-        # Check output shape and validity
-        assert pragmatic_probs.shape == (batch_size, num_candidates)
-        assert torch.allclose(
-            pragmatic_probs.sum(dim=-1), torch.ones(batch_size), atol=1e-6
-        )
-
-        # Compare with unimodal processing (create unimodal pragmatic listener)
-        unimodal_config = CommunicationConfig(
-            vocabulary_size=10,
-            message_length=2,
-            multimodal=False,
-        )
-        unimodal_literal_listener = Listener(unimodal_config)
-        unimodal_speaker = Speaker(unimodal_config)
-        unimodal_pragmatic_listener = PragmaticListener(
-            unimodal_config, unimodal_literal_listener, unimodal_speaker
-        )
-        unimodal_out = unimodal_pragmatic_listener(message_tokens, candidate_objects)
-        pragmatic_probs_unimodal = unimodal_out.probs
-
-        # Should be different due to different input modalities
-        assert not torch.allclose(pragmatic_probs, pragmatic_probs_unimodal, atol=1e-3)
-
 
 class TestPragmaticIntegration:
     """Test integration between pragmatic components."""
@@ -404,7 +311,6 @@ class TestPragmaticIntegration:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         speaker = Speaker(config)
@@ -448,7 +354,6 @@ class TestPragmaticIntegration:
         config = CommunicationConfig(
             vocabulary_size=10,
             message_length=2,
-            multimodal=False,
         )
 
         speaker = Speaker(config)

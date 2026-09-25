@@ -6,6 +6,7 @@ the foundation for studying proto-language emergence in multi-agent systems.
 
 import random
 from typing import (
+    Any,
     Dict,
     List,
     Tuple,
@@ -57,7 +58,7 @@ def make_object(color: str, shape: str, size: str) -> Dict[str, str]:
 
 
 def sample_scene(
-    k: int, seed: Optional[int] = None
+    k: int, seed: Optional[int] = None, rng: Optional[random.Random] = None
 ) -> Tuple[List[Dict[str, str]], int]:
     """Generate a scene with K distinct objects and select a target.
 
@@ -67,7 +68,9 @@ def sample_scene(
 
     Args:
         k: Number of objects in the scene (must be <= total possible objects).
-        seed: Random seed for reproducible scene generation.
+        seed: Random seed for reproducible scene generation (reseeds global RNGs).
+        rng: Optional local random generator; when given, ``seed`` is ignored and
+            global RNG state is left untouched.
 
     Returns:
         A tuple containing:
@@ -77,8 +80,9 @@ def sample_scene(
     Raises:
         ValueError: If k exceeds the total number of possible unique objects.
     """
-    if seed is not None:
+    if rng is None and seed is not None:
         set_seed(seed)
+    sampler: Any = rng if rng is not None else random
 
     total_objects = N_COLORS * N_SHAPES * N_SIZES
     if k > total_objects:
@@ -94,10 +98,10 @@ def sample_scene(
                 all_objects.append(make_object(color, shape, size))
 
     # Sample K unique objects
-    scene_objects = random.sample(all_objects, k)
+    scene_objects = sampler.sample(all_objects, k)
 
     # Select target index
-    target_idx = random.randint(0, k - 1)
+    target_idx = sampler.randint(0, k - 1)
 
     return scene_objects, target_idx
 

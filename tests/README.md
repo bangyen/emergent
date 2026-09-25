@@ -15,7 +15,6 @@ tests/
 │   ├── test_data.py         # Dataset tests
 │   ├── test_analysis.py     # Analysis function tests
 │   ├── test_pragmatics.py   # Pragmatic inference tests
-│   ├── test_multimodal.py   # Multimodal communication tests
 │   ├── test_sequences.py    # Sequence model tests
 │   ├── test_splits.py       # Data splitting tests
 │   └── test_basic.py        # Generic smoke tests
@@ -196,27 +195,7 @@ omit = [
 
 ## 🚀 Continuous Integration
 
-### GitHub Actions (Future)
-
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Install dependencies
-        run: make init
-      - name: Run tests
-        run: make test-coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v1
-```
+CI runs lint, format, type checks, unit and integration tests on Python 3.10–3.12; see `.github/workflows/ci.yml`.
 
 ## 📝 Writing New Tests
 
@@ -232,7 +211,7 @@ import pytest
 import torch
 from unittest.mock import patch, Mock
 
-from src.langlab.module_name import function_name
+from langlab.module_name import function_name
 
 
 @pytest.mark.unit
@@ -256,7 +235,7 @@ class TestFunctionName:
         with pytest.raises(ValueError, match="Expected error message"):
             function_name(invalid_input, sample_config)
 
-    @patch('src.langlab.module_name.external_function')
+    @patch('langlab.module_name.external_function')
     def test_with_mock(self, mock_external, sample_config):
         """Test with mocked external dependency."""
         mock_external.return_value = expected_value
@@ -281,7 +260,7 @@ class TestWorkflowName:
         setup_data = create_setup_data()
         
         # Step 2: Execute
-        with patch('src.langlab.module.slow_function') as mock_slow:
+        with patch('langlab.module.slow_function') as mock_slow:
             mock_slow.return_value = expected_result
             
             result = execute_workflow(setup_data, sample_config)

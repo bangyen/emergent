@@ -52,15 +52,15 @@ def test_speaker_output_shapes(speaker: Speaker, config: CommunicationConfig) ->
 
     # Check logits shape: (batch_size, message_length, vocabulary_size)
     expected_logits_shape = (batch_size, config.message_length, config.vocabulary_size)
-    assert (
-        output.logits.shape == expected_logits_shape
-    ), f"Expected {expected_logits_shape}, got {output.logits.shape}"
+    assert output.logits.shape == expected_logits_shape, (
+        f"Expected {expected_logits_shape}, got {output.logits.shape}"
+    )
 
     # Check tokens shape: (batch_size, message_length)
     expected_token_shape = (batch_size, config.message_length)
-    assert (
-        output.tokens.shape == expected_token_shape
-    ), f"Expected {expected_token_shape}, got {output.tokens.shape}"
+    assert output.tokens.shape == expected_token_shape, (
+        f"Expected {expected_token_shape}, got {output.tokens.shape}"
+    )
 
     # Check that tokens are integers
     assert output.tokens.dtype in [
@@ -88,15 +88,15 @@ def test_listener_output_shapes(
 
     # Check probs shape: (batch_size, num_candidates)
     expected_shape = (batch_size, num_candidates)
-    assert (
-        output.probs.shape == expected_shape
-    ), f"Expected {expected_shape}, got {output.probs.shape}"
+    assert output.probs.shape == expected_shape, (
+        f"Expected {expected_shape}, got {output.probs.shape}"
+    )
 
     # Check that probabilities sum to 1 for each batch
     prob_sums = output.probs.sum(dim=-1)
-    assert torch.allclose(
-        prob_sums, torch.ones(batch_size), atol=1e-6
-    ), f"Probabilities should sum to 1, got sums: {prob_sums}"
+    assert torch.allclose(prob_sums, torch.ones(batch_size), atol=1e-6), (
+        f"Probabilities should sum to 1, got sums: {prob_sums}"
+    )
 
 
 def test_channel_token_range(
@@ -160,9 +160,9 @@ def test_channel_token_range_edge_cases(
 
     # Should select the highest logit (first and last tokens)
     expected_tokens = torch.tensor([[0], [config.vocabulary_size - 1]])
-    assert torch.equal(
-        tokens, expected_tokens
-    ), f"Expected {expected_tokens}, got {tokens}"
+    assert torch.equal(tokens, expected_tokens), (
+        f"Expected {expected_tokens}, got {tokens}"
+    )
 
 
 def test_speaker_training_mode(speaker: Speaker, config: CommunicationConfig) -> None:
