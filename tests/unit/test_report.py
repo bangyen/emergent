@@ -65,3 +65,15 @@ def test_update_readme_requires_markers(tmp_path: Path) -> None:
 def test_create_report_empty(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         create_report(str(tmp_path))
+
+
+def test_named_block_and_metric_selection(tmp_path: Path) -> None:
+    _write(tmp_path, "a", 1, {"iid_acc": 1.0, "topsim": 0.5})
+    (tmp_path / "sweep.json").write_text(
+        json.dumps({"readme_block": "pop", "report_metrics": ["topsim"]})
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text("<!-- pop:start -->\n<!-- pop:end -->\n")
+    md = create_report(str(tmp_path), readme=str(readme))
+    assert "TopSim" in md and "IID" not in md
+    assert md in readme.read_text()

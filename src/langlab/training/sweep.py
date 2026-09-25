@@ -19,6 +19,11 @@ or, with ``"runner": "population"``, of
 :func:`~langlab.training.population.train_population`. Each run writes into
 ``<out_dir>/<run>/seed<seed>/`` and records ``results.json``; runs whose
 ``results.json`` already exists are skipped, so an interrupted sweep resumes.
+
+Optional keys: ``report_metrics`` (list of metric columns for the summary
+table) and ``readme_block`` (name of the ``<!-- name:start -->`` /
+``<!-- name:end -->`` block to fill when ``--readme`` is given; default
+``results``).
 """
 
 import itertools

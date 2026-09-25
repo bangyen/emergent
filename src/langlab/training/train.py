@@ -200,6 +200,7 @@ def train(
     n_eval: int = 1000,
     log_every: int = 100,
     world: str = "default",
+    hard_distractors: int = 0,
 ) -> Dict[str, float]:
     """Core training loop for emergent language.
 
@@ -230,7 +231,13 @@ def train(
     listener_opt = torch.optim.Adam(listener.parameters(), lr=learning_rate)
 
     baseline = MovingAverage()
-    stream = SceneStream(k, seed=seed, heldout_pairs=heldout_pairs, world=world_def)
+    stream = SceneStream(
+        k,
+        seed=seed,
+        heldout_pairs=heldout_pairs,
+        world=world_def,
+        hard_distractors=hard_distractors,
+    )
     dataloader = DataLoader(stream, batch_size=batch_size)
 
     os.makedirs(os.path.join(out_dir, "checkpoints"), exist_ok=True)

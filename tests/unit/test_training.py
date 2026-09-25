@@ -161,3 +161,22 @@ def test_eval_splits_and_pragmatic(tmp_path: Path) -> None:
     assert 0.0 <= res["acc"] <= 1.0
     with pytest.raises(ValueError):
         evaluate(ckpt, split="bogus")
+
+
+def test_scene_stream_hard_distractors() -> None:
+    stream = SceneStream(
+        k=4, seed=0, heldout_pairs=[("red", "circle")], hard_distractors=3
+    )
+    seen_targets = set()
+    for scene, target in islice(stream, 100):
+        seen_targets.add(target)
+        t = scene[target]
+        for i, obj in enumerate(scene):
+            if i != target:
+                assert (obj * t).sum() >= 1  # shares an attribute
+                assert not torch.equal(obj, t)
+        for obj in scene:
+            assert not (obj[0] == 1 and obj[3] == 1)  # never a red circle
+    assert len(seen_targets) > 1
+    with pytest.raises(ValueError):
+        SceneStream(k=3, hard_distractors=3)
